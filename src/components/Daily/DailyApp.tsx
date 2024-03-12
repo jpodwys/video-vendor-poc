@@ -1,4 +1,4 @@
-import Daily, { DailyEventObjectParticipant, DailyEventObjectParticipantLeft } from "@daily-co/daily-js";
+import Daily, { DailyEventObjectParticipant, DailyEventObjectParticipantLeft, DailyEventObjectTrack } from "@daily-co/daily-js";
 import { ChangeEvent, useCallback, useEffect, useState } from "react";
 import Video from "./Video";
 
@@ -8,6 +8,7 @@ const call = window.call = Daily.createCallObject({
 });
 
 const CAMERA_NAME = 'camera';
+const SCREEN_VIDEO_NAME = 'screenVideo';
 const LOCAL_STORAGE_CAMERA_DEVICE_KEY = 'cameraDeviceId';
 
 type RemoteParticipant = {
@@ -29,6 +30,7 @@ enum TrackNames {
 
 export default function DailyApp() {
   const [videoTrack, setVideoTrack] = useState<MediaStreamTrack | undefined>();
+  const [screenVideoTrack, setScreenVideoTrack] = useState<MediaStreamTrack | undefined>();
   const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipants>(new Map());
   const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
 
@@ -78,7 +80,6 @@ export default function DailyApp() {
 
   const acquireVideo = async (deviceId: string = ''): Promise<MediaStreamTrack> => {
     deviceId = deviceId || localStorage.getItem(LOCAL_STORAGE_CAMERA_DEVICE_KEY) || '';
-    console.log({ deviceId });
     const videoConstraints = deviceId
       ? { deviceId }
       : true;
@@ -136,6 +137,22 @@ export default function DailyApp() {
     localStorage.setItem(LOCAL_STORAGE_CAMERA_DEVICE_KEY, deviceId);
   }, [videoTrack]);
 
+  const toggleScreenshare = useCallback(async () => {
+    if (screenVideoTrack) {
+      call.stopCustomTrack(SCREEN_VIDEO_NAME);
+      screenVideoTrack.stop();
+      setScreenVideoTrack(undefined);
+    } else {
+      const stream = await navigator.mediaDevices.getDisplayMedia();
+      const screenVideo = stream.getVideoTracks()[0];
+      call.startCustomTrack({
+        track: screenVideo,
+        trackName: SCREEN_VIDEO_NAME,
+      });
+      setScreenVideoTrack(screenVideo);
+    }
+  }, [screenVideoTrack]);
+
   const getTracksFromRemoteParticipants = useCallback((): MediaStreamTrack[] => {
     const remoteTracks: MediaStreamTrack[] = [];
     remoteParticipants.forEach(remoteParticipant => {
@@ -159,6 +176,7 @@ export default function DailyApp() {
               return <option key={videoInput.deviceId} value={videoInput.deviceId}>{videoInput.label}</option>
             })}
           </select>
+          <button onClick={toggleScreenshare}>Toggle Screenshare</button>
         </div>
         {!!videoTrack &&
           <Video muted track={videoTrack} />
