@@ -1,7 +1,7 @@
-import DailyApp from "./components/Daily/DailyApp";
+import VideoCoreVonageWithoutHacksApp from "./components/Vonage/VideoCoreVonageWithoutHacksApp";
 
 function App() {
-  return <DailyApp />
+  return <VideoCoreVonageWithoutHacksApp />
 }
 
 export default App;
