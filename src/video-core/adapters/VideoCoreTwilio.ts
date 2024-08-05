@@ -58,7 +58,6 @@ export class TwilioRemoteVideoTrack extends VCTrack {
 
 export class TwilioRoom extends VCRoom {
   private room: Twilio.Room | undefined;
-  private localParticipant: Twilio.LocalParticipant | undefined;
   private localDataTrack: Twilio.LocalDataTrack = new Twilio.LocalDataTrack();
   private localCameraTrack: Twilio.LocalVideoTrack | undefined;
   private localMicTrack: Twilio.LocalAudioTrack | undefined;
@@ -134,18 +133,18 @@ export class TwilioRoom extends VCRoom {
 
   public startScreenshare(stream: MediaStream): Promise<VCTrack> {
     return new Promise((resolve, reject) => {
-      if (!this.localParticipant) {
-        throw new Error('nope');
+      if (!this.room) {
+        return reject('No room');
       }
       const video = stream.getVideoTracks()[0];
       const audio = stream.getVideoTracks()[0];
-      this.localScreenVideoTrack = new Twilio.LocalVideoTrack(video);
+      this.localScreenVideoTrack = new Twilio.LocalVideoTrack(video, { name: 'screen' });
       if (audio) {
-        this.localScreenAudioTrack = new Twilio.LocalAudioTrack(audio);
+        this.localScreenAudioTrack = new Twilio.LocalAudioTrack(audio, { name: 'screenAudio' });
       }
       [ this.localScreenVideoTrack, this.localScreenAudioTrack ].forEach(track => {
         if (track) {
-          this.localParticipant?.publishTrack(track);
+          this.room?.localParticipant?.publishTrack(track);
         }
       });
       const screen = new TwilioLocalVideoTrack({ mediaStreamTrack: video }, this.localScreenVideoTrack);
@@ -154,9 +153,12 @@ export class TwilioRoom extends VCRoom {
   }
 
   public stopScreenShare(): void {
+    if (!this.room) {
+      return;
+    }
     [ this.localScreenVideoTrack, this.localScreenAudioTrack ].forEach(track => {
       if (track) {
-        this.localParticipant?.unpublishTrack(track);
+        this.room?.localParticipant?.unpublishTrack(track);
       }
     });
     this.localScreenVideoTrack = undefined;
@@ -165,6 +167,9 @@ export class TwilioRoom extends VCRoom {
 
   public async disconnect() {
     await this.room?.disconnect();
+    [ this.localCameraTrack, this.localMicTrack, this.localScreenVideoTrack, this.localScreenAudioTrack ].forEach((track: Twilio.LocalVideoTrack | Twilio.LocalAudioTrack | undefined) => {
+      track?.stop();
+    });
   }
 
   private attachListeners(room: Twilio.Room) {

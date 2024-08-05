@@ -143,6 +143,7 @@ export class VonageRoom extends VCRoom {
         insertDefaultUI: false,
         audioSource: clonedAudioTrack,
         videoSource: videoTrack,
+        publishAudio: oldPublisher?.stream?.hasAudio,
       });
 
       this.session?.publish(this.defaultPublisher, () => {
@@ -164,7 +165,7 @@ export class VonageRoom extends VCRoom {
 
   public stopCamera(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.defaultPublisher?.publishVideo(false), (error: OT.OTError) => {
+      return this.defaultPublisher?.publishVideo(false), (error: OT.OTError) => {
         if (error) {
           return reject(error);
         }
@@ -224,6 +225,8 @@ export class VonageRoom extends VCRoom {
       this.session?.disconnect();
       this.session?.on('sessionDisconnected', () => {
         this.session = undefined;
+        this.defaultPublisher?.destroy();
+        this.screenPublisher?.destroy();
         resolve();
       });
     });
