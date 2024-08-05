@@ -1,5 +1,5 @@
 import * as Twilio from "twilio-video";
-import { IVCConnectOptions, IVCTrackOptions, TrackKind, VCLocalTracks, VCRoom, VCTrack } from "../abstract/VideoCore";
+import { IVCConnectOptions, IVCTrackOptions, VCLocalTracks, VCRoom, VCTrack } from "../abstract/VideoCore";
 
 export class TwilioLocalVideoTrack extends VCTrack {
   private localVideoTrack: Twilio.LocalVideoTrack;
@@ -77,6 +77,39 @@ export class TwilioRoom extends VCRoom {
       const audio = new TwilioLocalAudioTrack({ mediaStreamTrack: audioTrack }, this.localMicTrack);
       return resolve({ audio, video });
     });
+  }
+
+  public async startCamera(track: MediaStreamTrack): Promise<VCTrack> {
+    this.localCameraTrack = new Twilio.LocalVideoTrack(track);
+    if (this.room) {
+      await this.room.localParticipant.publishTrack(this.localCameraTrack, { priority: 'low' })
+        .catch(e => { throw e });
+    }
+    return new TwilioLocalVideoTrack({ mediaStreamTrack: track }, this.localCameraTrack);
+  }
+
+  public stopCamera(): Promise<void> {
+    if (this.localCameraTrack) {
+      this.localCameraTrack.stop();
+      this.room?.localParticipant.unpublishTrack(this.localCameraTrack);
+    }
+    return Promise.resolve();
+  }
+
+  public enableMic(enable: boolean): void {
+    this.localMicTrack?.enable(enable);
+  }
+
+  public async changeCamera(track: MediaStreamTrack): Promise<VCTrack> {
+    await this.stopCamera();
+    return this.startCamera(track);
+  }
+
+  public async changeMic(deviceId: string): Promise<VCTrack | undefined> {
+    if (this.localMicTrack) {
+      await this.localMicTrack.restart({ deviceId });
+      return new TwilioLocalAudioTrack({ mediaStreamTrack: this.localMicTrack?.mediaStreamTrack }, this.localMicTrack);
+    }
   }
 
   public async connect({ roomName, roomToken }: IVCConnectOptions): Promise<void> {

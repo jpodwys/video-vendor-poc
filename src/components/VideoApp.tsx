@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
-import '../../App.css';
-import Video from '../Video';
-import { VonageRoom } from '../../video-core/adapters/VideoCoreVonageWithoutHacks';
-import { VCTrack } from '../../video-core/abstract/VideoCore';
+import '../App.css';
+import Video from './Video';
+import { VCRoom, VCTrack } from '../video-core/abstract/VideoCore';
 
-const LocalStorageSessionIdKey = 'OTSessionId';
-const LocalStorageTokenKey = 'OTToken';
+interface VideoAppProps {
+  room: VCRoom;
+  roomName: string;
+  roomToken: string;
+}
 
-export default function VideoCoreVonageWithoutHacksApp() {
-  const [room, _setRoom] = useState<VonageRoom>(new VonageRoom());
+export default function VideoApp({ room, roomName, roomToken }: VideoAppProps) {
   const [connected, setConnected] = useState(false);
-  const [roomName, setRoomName] = useState(localStorage.getItem(LocalStorageSessionIdKey) || '');
-  const [roomToken, setRoomToken] = useState(localStorage.getItem(LocalStorageTokenKey) || '');
   const [audioTrack, setAudioTrack] = useState<VCTrack | undefined>();
   const [videoTrack, setVideoTrack] = useState<VCTrack | undefined>();
   const [remoteTracks, setRemoteTracks] = useState<VCTrack[]>([]);
@@ -35,13 +34,6 @@ export default function VideoCoreVonageWithoutHacksApp() {
     };
   }, [room, setRemoteTracks]);
 
-  const saveInputsToLocalStorage = (event: React.SyntheticEvent<HTMLFormElement>) => {
-    const formData = new FormData(event.currentTarget);
-    const { sessionId, token } = Object.fromEntries(formData) as { sessionId: string, token: string };
-    localStorage.setItem(LocalStorageSessionIdKey, sessionId);
-    localStorage.setItem(LocalStorageTokenKey, token);
-  };
-
   useEffect(() => {
     const assignDevices = (devices: MediaDeviceInfo[]) => {
       const mics: MediaDeviceInfo[] = [];
@@ -61,17 +53,6 @@ export default function VideoCoreVonageWithoutHacksApp() {
     }
   }, [videoTrack]);
 
-  /**
-   * If I expect to toggle the camera enabled state on the localTrack itself, there are two problems.
-   * * I need to update Twilio's solution to always have a camera track even when there isn't one.
-   * * * I can do this by using Twilio's `LocalVideoTrack.enable(boolean)` to match Vonage's behavior.
-   * * I would have to pass the Publisher instance into the RemoteVonageTrack instances.
-   *
-   * Or I can just have the VCRoom object manage this via a public method.
-   *
-   * Ultimately, holding onto a camera is bad. It shows the light and ties up the hardware. But that's
-   * how every single application manages microphones. Ugh.
-   */
   const toggleCamera = async () => {
     if (cameraEnabled) {
       room.stopCamera();
@@ -133,13 +114,9 @@ export default function VideoCoreVonageWithoutHacksApp() {
     setVideoTrack(video);
   };
 
-  const onSubmit = async (event: React.SyntheticEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    saveInputsToLocalStorage(event);
-    if (roomName && roomToken) {
-      await room.connect({ roomName, roomToken });
-      setConnected(true);
-    }
+  const connect = async () => {
+    await room.connect({ roomName, roomToken });
+    setConnected(true);
   };
 
   const disconnect = () => {
@@ -155,11 +132,7 @@ export default function VideoCoreVonageWithoutHacksApp() {
         {!connected &&
           <div>
             <button onClick={acquireHardware}>Acquire Hardware</button>
-            <form onSubmit={onSubmit}>
-              <input name="sessionId" placeholder="Session ID" value={roomName} onChange={(e) => setRoomName(e.target.value)} />
-              <input name="token" placeholder="Token" value={roomToken} onChange={(e) => setRoomToken(e.target.value)} />
-              <input type="submit" disabled={!audioTrack || !videoTrack} value="Connect" />
-            </form>
+            <button onClick={connect} disabled={!audioTrack || !videoTrack}>Connect</button>
           </div>
         }
         {connected &&
