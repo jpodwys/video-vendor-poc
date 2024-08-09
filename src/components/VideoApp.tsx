@@ -1,38 +1,69 @@
 import { useEffect, useState } from 'react';
 import '../App.css';
 import Video from './Video';
-import { VCRoom, VCTrack } from '../video-core/abstract/VideoCore';
+import { Participant, Room, AudioTrack, VideoTrack } from '../video-core/abstract/VideoCore';
 
 interface VideoAppProps {
-  room: VCRoom;
+  room: Room;
   roomName: string;
   roomToken: string;
 }
 
 export default function VideoApp({ room, roomName, roomToken }: VideoAppProps) {
   const [connected, setConnected] = useState(false);
-  const [audioTrack, setAudioTrack] = useState<VCTrack | undefined>();
-  const [videoTrack, setVideoTrack] = useState<VCTrack | undefined>();
-  const [remoteTracks, setRemoteTracks] = useState<VCTrack[]>([]);
+  const [audioTrack, setAudioTrack] = useState<AudioTrack | undefined>();
+  const [videoTrack, setVideoTrack] = useState<VideoTrack | undefined>();
+  const [remoteParticipants, setRemoteParticipants] = useState<Map<string, Participant>>(new Map());
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [micEnabled, setMicEnabled] = useState(true);
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [micDeviceId, setMicDeviceId] = useState('');
   const [cameraDeviceId, setCameraDeviceId] = useState('');
-  const [screen, setScreen] = useState<VCTrack | undefined>();
+  const [screen, setScreen] = useState<VideoTrack | undefined>();
 
+  const updateParticipant = (remoteParticipant: Participant) => {
+    remoteParticipants.set(remoteParticipant.identity, remoteParticipant);
+    setRemoteParticipants(new Map(remoteParticipants));
+  };
+
+  /**
+   * These event handlers all apply a brute-force approach that simply overwrites
+   * the applicable remoteParticipant. I could collapse all of these into a single
+   * event schema and handler, but I believe I'm going to need all of this additional
+   * data when I port this back into the main application.
+   */
   useEffect(() => {
-    const onTempVonageEvent = (remoteTrack: VCTrack) => {
-      setRemoteTracks([...remoteTracks, remoteTrack]);
+    const onParticipantConnected = (remoteParticipant: Participant) => {
+      updateParticipant(remoteParticipant);
     };
 
-    room.on('trackSubscribed', onTempVonageEvent);
+    const onParticipantDisconnected = (remoteParticipant: Participant) => {
+      updateParticipant(remoteParticipant);
+    };
+
+    const onTrackSubscribed = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {
+      updateParticipant(remoteParticipant);
+    };
+
+    const onTrackUnsubscribed = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {
+      updateParticipant(remoteParticipant);
+    };
+
+    const onTrackUnpublished = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {
+      updateParticipant(remoteParticipant);
+    };
+
+    room.on('participantConnected', onParticipantConnected)
+    room.on('participantDisconnected', onParticipantDisconnected);
+    room.on('trackSubscribed', onTrackSubscribed);
+    room.on('trackUnsubscribed', onTrackUnsubscribed)
+    room.on('trackUnpublished', onTrackUnpublished);
 
     return () => {
-      room.off('trackSubscribed', onTempVonageEvent);
+      room.off('trackSubscribed', onTrackSubscribed);
     };
-  }, [room, setRemoteTracks]);
+  }, [room, remoteParticipants, setRemoteParticipants]);
 
   useEffect(() => {
     const assignDevices = (devices: MediaDeviceInfo[]) => {
@@ -55,8 +86,8 @@ export default function VideoApp({ room, roomName, roomToken }: VideoAppProps) {
 
   const toggleCamera = async () => {
     if (cameraEnabled) {
+      videoTrack?.stop();
       room.stopCamera();
-      videoTrack?.mediaStreamTrack.stop();
       setVideoTrack(undefined);
       setCameraEnabled(false);
     } else {
@@ -76,6 +107,7 @@ export default function VideoApp({ room, roomName, roomToken }: VideoAppProps) {
 
   const toggleScreenshare = async () => {
     if (screen) {
+      screen?.stop();
       room.stopScreenShare();
       setScreen(undefined);
     } else {
@@ -94,7 +126,7 @@ export default function VideoApp({ room, roomName, roomToken }: VideoAppProps) {
 
   const changeCamera = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     setCameraDeviceId(e.target.value);
-    videoTrack?.mediaStreamTrack.stop();
+    videoTrack?.stop();
     const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: e.target.value } });
     const track = stream.getVideoTracks()[0];
     const localVideoTrack = await room.changeCamera(track);
@@ -126,6 +158,7 @@ export default function VideoApp({ room, roomName, roomToken }: VideoAppProps) {
     setVideoTrack(undefined);
   };
 
+  const participants = Array.from(remoteParticipants.values());
   return (
     <div className="App">
       <header className="App-header">
@@ -166,8 +199,19 @@ export default function VideoApp({ room, roomName, roomToken }: VideoAppProps) {
           <Video muted track={screen} />
         }
         {
-          remoteTracks.map((remoteTrack, i) => {
-            return <Video key={i} track={remoteTrack} />;
+          participants.map((participant) => {
+            return (
+              <div key={participant.identity}>
+                <p>{participant.identity}</p>
+                {
+                  [participant.camera, participant.screen].map((track) => {
+                    if (track) {
+                      return <Video key={track.id} track={track} />;
+                    }
+                  })
+                }
+              </div>
+            )
           })
         }
       </header>

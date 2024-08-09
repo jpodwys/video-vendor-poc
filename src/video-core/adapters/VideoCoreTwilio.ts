@@ -1,10 +1,10 @@
 import * as Twilio from "twilio-video";
-import { IVCConnectOptions, IVCTrackOptions, VCLocalTracks, VCRoom, VCTrack } from "../abstract/VideoCore";
+import { ConnectOptions, TrackOptions, LocalTracks, Room, AudioTrack, VideoTrack, TrackSource } from "../abstract/VideoCore";
 
-export class TwilioLocalVideoTrack extends VCTrack {
+export class TwilioLocalVideoTrack extends VideoTrack {
   private localVideoTrack: Twilio.LocalVideoTrack;
 
-  constructor(options: IVCTrackOptions, localVideoTrack: Twilio.LocalVideoTrack) {
+  constructor(options: TrackOptions, localVideoTrack: Twilio.LocalVideoTrack) {
     super(options);
     this.localVideoTrack = localVideoTrack;
   }
@@ -16,12 +16,16 @@ export class TwilioLocalVideoTrack extends VCTrack {
   public detach(): void {
     this.localVideoTrack.detach();
   }
+
+  public stop(): void {
+    this.localVideoTrack.stop();
+  }
 }
 
-export class TwilioLocalAudioTrack extends VCTrack {
+export class TwilioLocalAudioTrack extends AudioTrack {
   private localAudioTrack: Twilio.LocalAudioTrack;
 
-  constructor(options: IVCTrackOptions, localAudioTrack: Twilio.LocalAudioTrack) {
+  constructor(options: TrackOptions, localAudioTrack: Twilio.LocalAudioTrack) {
     super(options);
     this.localAudioTrack = localAudioTrack;
   }
@@ -33,12 +37,16 @@ export class TwilioLocalAudioTrack extends VCTrack {
   public detach(): void {
     this.localAudioTrack.detach();
   }
+
+  public stop(): void {
+    this.localAudioTrack.stop();
+  }
 }
 
-export class TwilioRemoteVideoTrack extends VCTrack {
+export class TwilioRemoteVideoTrack extends VideoTrack {
   private remoteVideoTrack: Twilio.RemoteVideoTrack;
 
-  constructor(options: IVCTrackOptions, localVideoTrack: Twilio.RemoteVideoTrack) {
+  constructor(options: TrackOptions, localVideoTrack: Twilio.RemoteVideoTrack) {
     super(options);
     this.remoteVideoTrack = localVideoTrack;
   }
@@ -50,13 +58,34 @@ export class TwilioRemoteVideoTrack extends VCTrack {
   public detach(): void {
     this.remoteVideoTrack.detach();
   }
+
+  public stop(): void {
+    // Unnecessary
+  }
 }
 
-// export class TwilioRemoteAudioTrack extends VCTrack {
+export class TwilioRemoteAudioTrack extends AudioTrack {
+  private remoteAudioTrack: Twilio.RemoteAudioTrack;
 
-// }
+  constructor(options: TrackOptions, remoteAudioTrack: Twilio.RemoteAudioTrack) {
+    super(options);
+    this.remoteAudioTrack = remoteAudioTrack;
+  }
 
-export class TwilioRoom extends VCRoom {
+  public attach(el: HTMLAudioElement): void {
+    this.remoteAudioTrack.attach(el);
+  }
+
+  public detach(): void {
+    this.remoteAudioTrack.detach();
+  }
+
+  public stop(): void {
+    // Unnecessary
+  }
+}
+
+export class TwilioRoom extends Room {
   private room: Twilio.Room | undefined;
   private localDataTrack: Twilio.LocalDataTrack = new Twilio.LocalDataTrack();
   private localCameraTrack: Twilio.LocalVideoTrack | undefined;
@@ -64,27 +93,27 @@ export class TwilioRoom extends VCRoom {
   private localScreenVideoTrack: Twilio.LocalVideoTrack | undefined;
   private localScreenAudioTrack: Twilio.LocalAudioTrack | undefined;
 
-  public createLocalTracks(stream: MediaStream): Promise<VCLocalTracks> {
+  public createLocalTracks(stream: MediaStream): Promise<LocalTracks> {
     return new Promise((resolve, _reject) => {
       const audioTrack = stream.getAudioTracks()[0];
       const videoTrack = stream.getVideoTracks()[0];
 
-      this.localCameraTrack = new Twilio.LocalVideoTrack(videoTrack);
-      this.localMicTrack = new Twilio.LocalAudioTrack(audioTrack);
+      this.localCameraTrack = new Twilio.LocalVideoTrack(videoTrack, { name: 'camera' });
+      this.localMicTrack = new Twilio.LocalAudioTrack(audioTrack, { name: 'mic' });
 
-      const video = new TwilioLocalVideoTrack({ mediaStreamTrack: videoTrack }, this.localCameraTrack);
-      const audio = new TwilioLocalAudioTrack({ mediaStreamTrack: audioTrack }, this.localMicTrack);
+      const video = new TwilioLocalVideoTrack({ id: 'local-video', mediaStreamTrack: videoTrack }, this.localCameraTrack);
+      const audio = new TwilioLocalAudioTrack({ id: 'local-mic', mediaStreamTrack: audioTrack }, this.localMicTrack);
       return resolve({ audio, video });
     });
   }
 
-  public async startCamera(track: MediaStreamTrack): Promise<VCTrack> {
-    this.localCameraTrack = new Twilio.LocalVideoTrack(track);
+  public async startCamera(track: MediaStreamTrack): Promise<VideoTrack> {
+    this.localCameraTrack = new Twilio.LocalVideoTrack(track, { name: 'camera' });
     if (this.room) {
       await this.room.localParticipant.publishTrack(this.localCameraTrack, { priority: 'low' })
         .catch(e => { throw e });
     }
-    return new TwilioLocalVideoTrack({ mediaStreamTrack: track }, this.localCameraTrack);
+    return new TwilioLocalVideoTrack({ id: 'local-camera', mediaStreamTrack: track }, this.localCameraTrack);
   }
 
   public stopCamera(): Promise<void> {
@@ -99,19 +128,19 @@ export class TwilioRoom extends VCRoom {
     this.localMicTrack?.enable(enable);
   }
 
-  public async changeCamera(track: MediaStreamTrack): Promise<VCTrack> {
+  public async changeCamera(track: MediaStreamTrack): Promise<VideoTrack> {
     await this.stopCamera();
     return this.startCamera(track);
   }
 
-  public async changeMic(deviceId: string): Promise<VCTrack | undefined> {
+  public async changeMic(deviceId: string): Promise<AudioTrack | undefined> {
     if (this.localMicTrack) {
       await this.localMicTrack.restart({ deviceId });
-      return new TwilioLocalAudioTrack({ mediaStreamTrack: this.localMicTrack?.mediaStreamTrack }, this.localMicTrack);
+      return new TwilioLocalAudioTrack({ id: 'local-mic', mediaStreamTrack: this.localMicTrack?.mediaStreamTrack }, this.localMicTrack);
     }
   }
 
-  public async connect({ roomName, roomToken }: IVCConnectOptions): Promise<void> {
+  public async connect({ roomName, roomToken }: ConnectOptions): Promise<void> {
     const tracks = [ this.localDataTrack, this.localCameraTrack, this.localMicTrack ].filter(track => !!track) as Twilio.LocalTrack[];
     this.room = await Twilio.connect(roomToken, {
       name: roomName,
@@ -128,10 +157,19 @@ export class TwilioRoom extends VCRoom {
         },
       },
     });
+    // Twilio doesn't emit `participantConnected` for already-present participants
+    // but does emit `trackSubscribed` for already-published tracks. So we just need
+    // to ensure we get the already-present participants into our participants list
+    // before we attach event listeners to our Twilio room instance.
+    Array.from(this.room.participants.values()).forEach(({ identity }: Twilio.RemoteParticipant) => {
+      const participant = { identity };
+      this.participants.set(identity, participant);
+      this.emit('participantConnected', participant);
+    });
     this.attachListeners(this.room);
   }
 
-  public startScreenshare(stream: MediaStream): Promise<VCTrack> {
+  public startScreenshare(stream: MediaStream): Promise<VideoTrack> {
     return new Promise((resolve, reject) => {
       if (!this.room) {
         return reject('No room');
@@ -147,7 +185,7 @@ export class TwilioRoom extends VCRoom {
           this.room?.localParticipant?.publishTrack(track);
         }
       });
-      const screen = new TwilioLocalVideoTrack({ mediaStreamTrack: video }, this.localScreenVideoTrack);
+      const screen = new TwilioLocalVideoTrack({ id: 'local-screen', mediaStreamTrack: video }, this.localScreenVideoTrack);
       resolve(screen);
     });
   }
@@ -172,14 +210,74 @@ export class TwilioRoom extends VCRoom {
     });
   }
 
+  /**
+   * I believe Twilio's setup needs to handle already-connected
+   * participants and already-published tracks.
+   */
   private attachListeners(room: Twilio.Room) {
-    room.on('trackSubscribed', (track: Twilio.RemoteTrack) => {
+    room.on('participantConnected', ({ identity }: Twilio.RemoteParticipant) => {
+      this.participants.set(identity, { identity });
+    });
+
+    room.on('participantDisconnected', ({ identity }: Twilio.RemoteParticipant) => {
+      const participant = this.participants.get(identity);
+      if (participant) {
+        this.participants.delete(identity);
+        this.emit('participantDisconnected', participant);
+      }
+    });
+
+    room.on('trackSubscribed', (track: Twilio.RemoteTrack, _publication: Twilio.RemoteTrackPublication, remoteParticipant: Twilio.RemoteParticipant) => {
       switch(track.kind) {
         case 'data': return;
-        case 'audio': track.attach(); return;
+        case 'audio': {
+          // Stop attaching audio tracks here
+          track.attach();
+          const source = track.name === 'screen' ? 'screenAudio' : 'mic';
+          const id = `${track.sid}-${source}`;
+          const remoteAudioTrack = new TwilioRemoteAudioTrack({ id, source, mediaStreamTrack: track.mediaStreamTrack }, track as Twilio.RemoteAudioTrack);
+          const participant = this.participants.get(remoteParticipant.identity);
+          if (participant) {
+            participant[source] = remoteAudioTrack;
+            this.emit('trackSubscribed', remoteAudioTrack, participant);
+          }
+          return;
+        }
         case 'video': {
-          const remoteVideoTrack = new TwilioRemoteVideoTrack({ mediaStreamTrack: track.mediaStreamTrack }, track);
-          this.emit('trackSubscribed', remoteVideoTrack);
+          const source = track.name === 'screen' ? 'screen' : 'camera';
+          const id = `${track.sid}-${source}`;
+          const remoteVideoTrack = new TwilioRemoteVideoTrack({ id, source, mediaStreamTrack: track.mediaStreamTrack }, track as Twilio.RemoteVideoTrack);
+          const participant = this.participants.get(remoteParticipant.identity);
+          if (participant) {
+            participant[source] = remoteVideoTrack;
+            this.emit('trackSubscribed', remoteVideoTrack, participant);
+          }
+          return;
+        }
+      }
+    });
+
+    room.on('trackUnsubscribed', (remoteTrack: Twilio.RemoteTrack, _publication: Twilio.RemoteTrackPublication, remoteParticipant: Twilio.RemoteParticipant) => {
+      const participant = this.participants.get(remoteParticipant.identity);
+      if (participant) {
+        const trackName = remoteTrack.name as TrackSource;
+        const track = participant[trackName];
+        if (track) {
+          delete participant[trackName];
+          this.emit('trackUnsubscribed', track, participant);
+        }
+      }
+    });
+
+    room.on('trackUnpublished', (publication: Twilio.RemoteTrackPublication, remoteParticipant: Twilio.RemoteParticipant) => {
+      console.log('HERCULES', 'trackUnsubscribed');
+      const participant = this.participants.get(remoteParticipant.identity);
+      if (participant) {
+        const trackName = publication.trackName as TrackSource;
+        const track = participant[trackName];
+        if (track) {
+          delete participant[trackName];
+          this.emit('trackUnsubscribed', track, participant);
         }
       }
     });

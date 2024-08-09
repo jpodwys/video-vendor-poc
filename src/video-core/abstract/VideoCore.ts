@@ -2,31 +2,51 @@ import { EventEmitter } from 'events';
 
 export type KeyValueObject = {[key: string]: any};
 
-export type VCLocalTracks = {
-  audio: VCTrack;
-  video: VCTrack;
+export type LocalTracks = {
+  audio: AudioTrack;
+  video: VideoTrack;
 }
 
-export type TrackKind = 'default' | 'screen' | 'ptz';
+// export type TrackKind = 'default' | 'screen' | 'ptz';
 
 interface VideoCoreEvents {
-  participantConnected: () => void;
-  participantDisconnected: () => void;
-  dominantSpeakerChanged: () => void;
-  trackSubscribed: (track: VCTrack) => void;
-  trackUnsubscribed: () => void;
-  trackUnpublished: () => void;
-  trackEnabled: () => void;
-  trackDisabled: () => void;
-  trackStarted: () => void;
+  participantConnected: (participant: Participant) => void;
+  participantDisconnected: (participant: Participant) => void;
+  // remoteParticipant | null
+  dominantSpeakerChanged: (participant: Participant) => void;
+  trackSubscribed: (track: AudioTrack | VideoTrack, participant: Participant) => void;
+  trackUnsubscribed: (track: AudioTrack | VideoTrack, participant: Participant) => void;
+  trackUnpublished: (track: AudioTrack | VideoTrack, participant: Participant) => void;
+  // publication (used for trackSid and isTrackEnabled)
+  trackEnabled: (track: AudioTrack | VideoTrack) => void;
+  // same event handler as above - publication (used for trackSid and isTrackEnabled)
+  trackDisabled: (track: AudioTrack | VideoTrack) => void;
+  /**
+   * I DON'T THINK THIS IS NECESSARY FOR TWILIO
+   * IS THIS THE EQUIVALENT TO WHAT VONAGE NEEDS TO KEEP PLAYING
+   * SIMULCAST TRACK LAYER SWITCHES????
+   */
+  // track (uses sid and mediaStreamTrack)
+  trackStarted: (track: AudioTrack | VideoTrack) => void;
+  // data, track (unused), participant (used for identity)
   trackMessage: () => void;
+  // track
   trackDimensionsChanged: () => void;
+  // track, publication (unused), participant (used for sid and identity)
   trackSwitchedOff: () => void;
+  // track, publication (unused), participant (used for sid and identity)
   trackSwitchedOn: () => void;
+  // room (unused), error
   disconnected: () => void;
+  /**
+   * This is not supported as a room-level event in Twilio.
+   * I have to attach per-participant event handlers for this.
+   */
+  // participant (used for identity and networkQualityLevel)
+  networkQualityChanged: () => void;
 }
 
-export declare interface VCRoom {
+export declare interface Room {
   on<U extends keyof VideoCoreEvents>(
     event: U,
     listener: VideoCoreEvents[U]
@@ -47,70 +67,89 @@ export declare interface VCRoom {
   ): boolean;
 }
 
-export interface IVCRoomOptions {
+export interface RoomOptions {
   roomName: string;
 }
 
-export interface IVCConnectOptions {
+export interface ConnectOptions {
   roomName: string;
   roomToken: string;
 }
 
 /**
- * In order to use this transwitch architecture, I think
- * it would be best to place the practice preference
- * lookup in factory methods that return the necessary
- * vendor-specific class instaces.
- */
-
-/**
- * My current VideoCore architecture assumes that VCTrack
- * instances will only be instantiated by VCRoom instances.
+ * My current VideoCore architecture assumes that Track
+ * instances will only be instantiated by Room instances.
  * I should write an eslint rule if I keep this assumption.
  */
-export abstract class VCRoom extends EventEmitter {
-  // remoteTracks is just for temporary PoC work. This will most likely be replaced with something else.
-  public readonly remoteTracks: VCTrack[] = [];
-  public abstract createLocalTracks(stream: MediaStream): Promise<VCLocalTracks>;
-  // I need to ensure this approach can handle PTZ devices with a name/locals property for both vendors
-  public abstract startCamera(track: MediaStreamTrack): Promise<VCTrack>;
+export abstract class Room extends EventEmitter {
+  public readonly participants: Map<string, Participant> = new Map();
+  public readonly localParticipant: Participant | undefined;
+  public abstract createLocalTracks(stream: MediaStream): Promise<LocalTracks>;
+  // I need to ensure this approach can handle PTZ devices with a name property for both vendors
+  public abstract startCamera(track: MediaStreamTrack): Promise<VideoTrack>;
   public abstract stopCamera(): Promise<void>;
   public abstract enableMic(enable: boolean): void;
-  public abstract changeCamera(track: MediaStreamTrack): Promise<VCTrack>;
-  // changeMic current expects a deviceId - this is because we should always have an audio track
-  public abstract changeMic(deviceId: string): Promise<VCTrack | undefined>;
+  public abstract changeCamera(track: MediaStreamTrack): Promise<VideoTrack>;
+  public abstract changeMic(deviceId: string): Promise<AudioTrack | undefined>;
   // Should connect accept tracks or should it just be assumed it will automatically publish all existing local tracks?
-  public abstract connect(options: IVCConnectOptions): Promise<void>;
+  public abstract connect(options: ConnectOptions): Promise<void>;
+  /**
+   * This should cleanup all event listeners
+   */
   public abstract disconnect(): Promise<void>;
-  public abstract startScreenshare(stream: MediaStream): Promise<VCTrack>;
+  public abstract startScreenshare(stream: MediaStream): Promise<VideoTrack>;
   public abstract stopScreenShare(): void;
-  // public abstract publish(track: VCTrack): void;
-  // public abstract unpublish(track: VCTrack): void;
   // public abstract signal(data: KeyValueObject): void;
   // public abstract setAudioOutputDevice(deviceId: string): void;
-  // protected options: IVCRoomOptions;
-
-  // constructor(options: IVCRoomOptions) {
-  //   super();
-  //   this.options = options;
-  // }
 }
 
-export interface IVCTrackOptions {
-  // kind: TrackKind;
+export interface Participant {
+  identity: string;
+  // networkQuality: number;
+  camera?: VideoTrack;
+  mic?: AudioTrack;
+  screen?: VideoTrack;
+  screenAudio?: AudioTrack;
+}
+
+export type TrackSource = 'camera' | 'mic' | 'screen' | 'screenAudio';
+
+export interface TrackOptions {
+  id: string;
   mediaStreamTrack: MediaStreamTrack;
+  source?: TrackSource;
+  isPTZ?: boolean;
 }
 
-export abstract class VCTrack extends EventEmitter {
-  public readonly mediaStreamTrack: MediaStreamTrack;
-  // protected kind: TrackKind;
+abstract class Track {
+  public readonly id: string;
+  public readonly source: TrackSource;
+  protected mediaStreamTrack: MediaStreamTrack;
 
   public abstract attach(el: HTMLMediaElement): void;
   public abstract detach(): void;
+  public abstract stop(): void;
 
-  constructor({ mediaStreamTrack }: IVCTrackOptions) {
-    super();
-    // this.kind = kind;
+  constructor({ id, mediaStreamTrack, source }: TrackOptions) {
+    this.id = id;
+    this.source = source ?? 'camera';
     this.mediaStreamTrack = mediaStreamTrack;
+  }
+}
+
+export abstract class AudioTrack extends Track {
+  public readonly kind = 'audio';
+}
+
+export abstract class VideoTrack extends Track {
+  public readonly kind = 'video';
+  public readonly isPTZ: boolean;
+  public get dimensions () {
+    const { width, height } = this.mediaStreamTrack.getSettings();
+    return { width, height };
+  }
+  constructor(options: TrackOptions) {
+    super(options);
+    this.isPTZ = options.isPTZ ?? false;
   }
 }

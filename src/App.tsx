@@ -2,14 +2,14 @@ import { useCallback, useState } from "react";
 import VideoApp from "./components/VideoApp";
 import { TwilioRoom } from "./video-core/adapters/VideoCoreTwilio";
 import { VonageRoom } from "./video-core/adapters/VideoCoreVonage";
-import { VCRoom } from "./video-core/abstract/VideoCore";
+import { Room } from "./video-core/abstract/VideoCore";
 
 type Vendor = 'twilio' | 'vonage';
 
 const LocalStorageRoomNameKey = 'RoomName';
 const LocalStorageRoomTokenLey = 'RoomToken';
 
-function videoCoreRoomFactory(vendor: Vendor): VCRoom {
+function videoCoreRoomFactory(vendor: Vendor): Room {
   switch(vendor) {
     case 'twilio': return new TwilioRoom();
     case 'vonage': return new VonageRoom();
@@ -17,7 +17,7 @@ function videoCoreRoomFactory(vendor: Vendor): VCRoom {
 }
 
 function App() {
-  const [room, setRoom] = useState<VCRoom | undefined>();
+  const [room, setRoom] = useState<Room | undefined>();
   const [roomName, setRoomName] = useState(localStorage.getItem(LocalStorageRoomNameKey) || '');
   const [roomToken, setRoomToken] = useState(localStorage.getItem(LocalStorageRoomTokenLey) || '');
 

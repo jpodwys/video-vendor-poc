@@ -1,5 +1,5 @@
 import * as OT from '@opentok/client'
-import { IVCConnectOptions, VCLocalTracks, VCRoom, VCTrack } from "../abstract/VideoCore";
+import { ConnectOptions, TrackOptions, LocalTracks, Participant, Room, AudioTrack, VideoTrack, TrackSource } from "../abstract/VideoCore";
 
 export type VCSubscriber = OT.Subscriber & {
   _: {
@@ -14,8 +14,24 @@ export type VCPublisher = OT.Publisher & {
 
 const APP_ID = 'f2898af5-23f2-4ee7-a0f4-045661dbfca8';
 
-export class VonageRemoteVideoTrack extends VCTrack {
+export class VonageRemoteVideoTrack extends VideoTrack {
   private videoElement: HTMLVideoElement | undefined;
+  private sourceVideoElement: HTMLVideoElement;
+
+  constructor(options: TrackOptions, sourceVideoElement: HTMLVideoElement) {
+    super(options);
+    this.sourceVideoElement = sourceVideoElement;
+    this.sourceVideoElement.addEventListener('play', () => {
+      const stream = this.sourceVideoElement.srcObject as MediaStream;
+      const video = stream.getVideoTracks()[0];
+      if (video) {
+        this.mediaStreamTrack = video;
+      }
+      if (video && this.videoElement) {
+        this.videoElement.srcObject = new MediaStream([video]);
+      }
+    });
+  }
 
   public attach(el: HTMLVideoElement) {
     el.srcObject = new MediaStream([this.mediaStreamTrack]);
@@ -28,9 +44,17 @@ export class VonageRemoteVideoTrack extends VCTrack {
     }
     this.videoElement = undefined;
   }
+
+  public stop() {
+    this.mediaStreamTrack.stop();
+    if (this.videoElement) {
+      this.videoElement.srcObject = null;
+    }
+    this.sourceVideoElement.srcObject = null;
+  }
 }
 
-export class VonageRemoteAudioTrack extends VCTrack {
+export class VonageRemoteAudioTrack extends AudioTrack {
   private audioElement: HTMLAudioElement | undefined;
 
   public attach(el: HTMLAudioElement) {
@@ -44,9 +68,16 @@ export class VonageRemoteAudioTrack extends VCTrack {
     }
     this.audioElement = undefined;
   }
+
+  public stop() {
+    this.mediaStreamTrack.stop();
+    if (this.audioElement) {
+      this.audioElement.srcObject = null;
+    }
+  }
 }
 
-export class VonageLocalVideoTrack extends VCTrack {
+export class VonageLocalVideoTrack extends VideoTrack {
   public publisher: VCPublisher | undefined;
   public videoElement: HTMLVideoElement | undefined;
 
@@ -61,9 +92,16 @@ export class VonageLocalVideoTrack extends VCTrack {
     }
     this.videoElement = undefined;
   }
+
+  public stop() {
+    this.mediaStreamTrack.stop();
+    if (this.videoElement) {
+      this.videoElement.srcObject = null;
+    }
+  }
 }
 
-export class VonageLocalAudioTrack extends VCTrack {
+export class VonageLocalAudioTrack extends AudioTrack {
   public publisher: VCPublisher | undefined;
   public audioElement: HTMLAudioElement | undefined;
 
@@ -78,15 +116,22 @@ export class VonageLocalAudioTrack extends VCTrack {
     }
     this.audioElement = undefined;
   }
+
+  public stop() {
+    this.mediaStreamTrack.stop();
+    if (this.audioElement) {
+      this.audioElement.srcObject = null;
+    }
+  }
 }
 
-export class VonageRoom extends VCRoom {
+export class VonageRoom extends Room {
   private session: OT.Session | undefined;
   private defaultPublisher: OT.Publisher | undefined;
   private screenPublisher: OT.Publisher | undefined;
   private stream: MediaStream | undefined;
 
-  public createLocalTracks(stream: MediaStream): Promise<VCLocalTracks> {
+  public createLocalTracks(stream: MediaStream): Promise<LocalTracks> {
     return new Promise((resolve, _reject) => {
       const audioTrack = stream.getAudioTracks()[0];
       const videoTrack = stream.getVideoTracks()[0];
@@ -95,23 +140,22 @@ export class VonageRoom extends VCRoom {
         insertDefaultUI: false,
         audioSource: audioTrack,
         videoSource: videoTrack,
+        name: 'camera',
       });
 
       this.defaultPublisher.on('videoElementCreated', ({ element }) => {
         const srcStream = (element as HTMLVideoElement).srcObject as MediaStream;
         this.stream = srcStream;
-        //@ts-ignore
-        window.stream = srcStream;
         const srcAudioTrack = srcStream.getAudioTracks()[0];
         const srcVideoTrack = srcStream.getVideoTracks()[0];
-        const audio = new VonageLocalAudioTrack({ mediaStreamTrack: srcAudioTrack });
-        const video = new VonageLocalVideoTrack({ mediaStreamTrack: srcVideoTrack });
+        const audio = new VonageLocalAudioTrack({ id: 'local-mic', mediaStreamTrack: srcAudioTrack });
+        const video = new VonageLocalVideoTrack({ id: 'local-camera', mediaStreamTrack: srcVideoTrack });
         return resolve({ audio, video });
       });
     });
   }
 
-  public connect({ roomName, roomToken }: IVCConnectOptions): Promise<void> {
+  public connect({ roomName, roomToken }: ConnectOptions): Promise<void> {
     return new Promise((resolve, reject) => {
       this.session = OT.initSession(APP_ID, roomName);
       this.attachListeners();
@@ -132,7 +176,7 @@ export class VonageRoom extends VCRoom {
     });
   }
 
-  public startCamera(videoTrack: MediaStreamTrack): Promise<VCTrack> {
+  public startCamera(videoTrack: MediaStreamTrack): Promise<VideoTrack> {
     return new Promise((resolve, reject) => {
       const oldPublisher = this.defaultPublisher;
 
@@ -144,8 +188,11 @@ export class VonageRoom extends VCRoom {
         audioSource: clonedAudioTrack,
         videoSource: videoTrack,
         publishAudio: oldPublisher?.stream?.hasAudio,
+        name: 'camera',
       });
 
+      // We unpublish after publishing is to ensure the audio hiccup
+      // that comes from needing to unpublish is as short as possible.
       this.session?.publish(this.defaultPublisher, () => {
         if (this.session && oldPublisher) {
           this.session.unpublish(oldPublisher);
@@ -157,7 +204,7 @@ export class VonageRoom extends VCRoom {
         const srcStream = (element as HTMLVideoElement).srcObject as MediaStream;
         this.stream = srcStream;
         const srcVideoTrack = srcStream.getVideoTracks()[0];
-        const video = new VonageLocalVideoTrack({ mediaStreamTrack: srcVideoTrack });
+        const video = new VonageLocalVideoTrack({ id: 'local-camera', mediaStreamTrack: srcVideoTrack });
         return resolve(video);
       });
     });
@@ -178,21 +225,21 @@ export class VonageRoom extends VCRoom {
     this.defaultPublisher?.publishAudio(enable);
   }
 
-  public async changeCamera(videoTrack: MediaStreamTrack): Promise<VCTrack> {
+  public async changeCamera(videoTrack: MediaStreamTrack): Promise<VideoTrack> {
     await this.startCamera(videoTrack);
     const mediaStreamTrack = this.defaultPublisher?.getVideoSource()?.track as MediaStreamTrack;
-    return new VonageLocalVideoTrack({ mediaStreamTrack });
+    return new VonageLocalVideoTrack({ id: 'local-camera', mediaStreamTrack });
   }
 
-  public async changeMic(deviceId: string): Promise<VCTrack | undefined> {
+  public async changeMic(deviceId: string): Promise<AudioTrack | undefined> {
     if (this.defaultPublisher) {
       await this.defaultPublisher.setAudioSource(deviceId);
       const mediaStreamTrack = this.defaultPublisher.getAudioSource() as MediaStreamTrack;
-      return new VonageLocalAudioTrack({ mediaStreamTrack });
+      return new VonageLocalAudioTrack({ id: 'local-mic', mediaStreamTrack });
     }
   }
 
-  public startScreenshare(stream: MediaStream): Promise<VCTrack> {
+  public startScreenshare(stream: MediaStream): Promise<VideoTrack> {
     return new Promise((resolve, reject) => {
       const audioTrack = stream.getAudioTracks()[0];
       const videoTrack = stream.getVideoTracks()[0];
@@ -201,13 +248,18 @@ export class VonageRoom extends VCRoom {
         insertDefaultUI: false,
         audioSource: audioTrack,
         videoSource: videoTrack,
+        name: 'screen',
       });
 
       this.session?.publish(this.screenPublisher, (error) => {
         if (error) {
           return reject(error);
         }
-        const video = new VonageLocalVideoTrack({ mediaStreamTrack: videoTrack });
+        const video = new VonageLocalVideoTrack({
+          id: this.screenPublisher?.stream?.streamId ?? 'local-screen',
+          source: 'screen',
+          mediaStreamTrack: videoTrack
+        });
         return resolve(video);
       });
     });
@@ -238,50 +290,80 @@ export class VonageRoom extends VCRoom {
         return;
       }
 
-      /**
-       * Per my conversation my Vonage on 2/27, it's clear we need to keep
-       * track of the HTMLVideoElement emitted by the Subscriber instance.
-       * This is for two reasons
-       * 1. The videoElementCreated event fires when the stream object first
-       *  becomes available
-       * 2. We will also have to attach an event listener to the
-       *  HTMLVideoElement's onplay handler to ensure our stream instance
-       *  doesn't become stale.
-       *  https://api.support.vonage.com/hc/en-us/articles/10901330247964-How-to-update-subscriber-stream-when-manipulating-video-element
-       *
-       * With this in mind, I should wait to emit streamSubscribed until the Subscriber emits videoElementCreated and I have the element.
-       */
-
       const subscriber = this.session.subscribe(stream, undefined, { insertDefaultUI: false });
       subscriber.on('videoElementCreated', ({ element }) => {
         const remoteStream = (element as HTMLVideoElement).srcObject as MediaStream;
         const videoTrack = remoteStream.getVideoTracks()[0] as MediaStreamTrack | undefined;
         const audioTrack = remoteStream.getAudioTracks()[0] as MediaStreamTrack | undefined;
-        if (videoTrack) {
-          const remoteVideoTrack = new VonageRemoteVideoTrack({ mediaStreamTrack: videoTrack });
-          this.remoteTracks.push(remoteVideoTrack);
-          this.emit('trackSubscribed', remoteVideoTrack);
+        // identity is set by me on the server - it is analagous to Twilio's RemoteParticipant.identity.
+        const { identity } = JSON.parse(stream?.connection.data ?? '{}') as { identity: string };
+        // streamName is set by me on the publishing user's device.
+        const source = stream.name as TrackSource;
+        // connectionId is set by Vonage - it is analogous to Twilio's RemoteTrack.sid
+        // because we only get one connectionId per stream and each stream has two tracks,
+        // we'll need to add something to each track's id to make them unique.
+        const connectionId = subscriber.stream?.connection.connectionId;
+
+        let remoteParticipant: Participant = { identity };
+
+        if (this.participants.has(identity)) {
+          remoteParticipant = this.participants.get(identity) as Participant;
+        } else {
+          this.participants.set(identity, remoteParticipant);
+          this.emit('participantConnected', remoteParticipant);
         }
-        if (audioTrack) {
-          const remoteAudioTrack = new VonageRemoteAudioTrack({ mediaStreamTrack: audioTrack });
-          remoteAudioTrack.attach(document.createElement('audio'));
-          // this.remoteTracks.push(remoteAudioTrack);
-          // this.emit('temporaryVonageSubscriberEvent', remoteAudioTrack);
+
+        element.addEventListener('play', () => {
+          const updatedStream = (element as HTMLVideoElement).srcObject as MediaStream;
+          const updatedVideo = updatedStream.getVideoTracks()[0] as MediaStreamTrack | undefined;
+          if (updatedVideo && (source === 'camera' || source === 'screen')) {
+            const id = `${connectionId}-${source}`;
+            const updatedRemoteVideoTrack = new VonageRemoteVideoTrack({ id, source: source, mediaStreamTrack: updatedVideo }, element as HTMLVideoElement);
+            remoteParticipant[source] = updatedRemoteVideoTrack;
+          }
+        });
+
+        if (connectionId) {
+          if (videoTrack && (source === 'camera' || source === 'screen')) {
+            const id = `${connectionId}-${source}`;
+            const remoteVideoTrack = new VonageRemoteVideoTrack({ id, source, mediaStreamTrack: videoTrack }, element as HTMLVideoElement);
+            remoteParticipant[source] = remoteVideoTrack;
+            this.emit('trackSubscribed', remoteVideoTrack, remoteParticipant);
+          }
+          if (audioTrack) {
+            const key = source === 'screen' ? 'screenAudio' : 'mic';
+            const id = `${connectionId}-${key}`;
+            const remoteAudioTrack = new VonageRemoteAudioTrack({ id, source: key, mediaStreamTrack: audioTrack });
+            remoteParticipant[key] = remoteAudioTrack;
+            // I should not attach inside of VideoCore, but this is fine for the PoC
+            remoteAudioTrack.attach(document.createElement('audio'));
+            console.log('HERCULES', 'trackSubscribed - audio', { source });
+            this.emit('trackSubscribed', remoteAudioTrack, remoteParticipant);
+          }
         }
-        // THIS IS NECESSARY TO ENSURE THE VIDEO DOESN'T DIE WHEN THE SIMULCAST LAYER SWITCHES
-        // element.addEventListener('play', () => {
-        //   const updatedStream = (element as HTMLVideoElement).srcObject as MediaStream;
-        // });
       });
-      // Attach audio imperatively - save the audio track so we can change sinkId when needed
-      // this.attachAudioTrack(stream.streamId, audioTrack);
-      // VonageRemoteVideoTrack extends abstract class VideoCoreTrack
-      // const remoteVideoTrack = new VonageRemoteVideoTrack(someOptions);
-      // remoteVideoTrack.setSubscriber(subscriber);
-      // this.emit('streamSubscribed', {
-      //   remoteVideoTrack,
-      //   remoteAudioTrack,
-      // });
+    });
+
+    this.session?.on('streamDestroyed', ({ stream }) => {
+      const { identity } = JSON.parse(stream.connection.data ?? '{}');
+      const participant = this.participants.get(identity);
+      if (participant) {
+        const { camera, mic, screen, screenAudio } = participant;
+        let tracks = [ camera, mic ];
+        if (stream.name === 'screen') {
+          tracks = [ screen, screenAudio ];
+        }
+        tracks.forEach(track => {
+          if (track) {
+            delete participant[track.source];
+            this.emit('trackUnpublished', track, participant);
+          }
+        });
+        if (!participant.camera && !participant.mic && !participant.screen && !participant.screenAudio) {
+          this.participants.delete(identity);
+          this.emit('participantDisconnected', participant);
+        }
+      }
     });
   }
 

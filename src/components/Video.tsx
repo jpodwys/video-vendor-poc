@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
-import { VCTrack } from "../video-core/abstract/VideoCore";
+import { VideoTrack } from "../video-core/abstract/VideoCore";
 
 interface VideoProps {
-  track: VCTrack;
+  track: VideoTrack;
   muted?: boolean;
   mirror?: boolean;
 }
