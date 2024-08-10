@@ -1,4 +1,4 @@
-import Daily, { DailyEventObjectParticipant, DailyEventObjectParticipantLeft, DailyEventObjectTrack } from "@daily-co/daily-js";
+import Daily, { DailyEventObjectParticipant, DailyEventObjectParticipantLeft } from "@daily-co/daily-js";
 import { ChangeEvent, useCallback, useEffect, useState } from "react";
 import Video from "./Video";
 
