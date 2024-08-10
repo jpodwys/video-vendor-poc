@@ -1,5 +1,5 @@
 import * as OT from '@opentok/client'
-import { ConnectOptions, TrackOptions, LocalTracks, Participant, Room, AudioTrack, VideoTrack, TrackSource } from "../abstract/VideoCore";
+import { ConnectOptions, TrackOptions, LocalTracks, Participant, Room, AudioTrack, VideoTrack, TrackSource, SignalEvent } from "../abstract/VideoCore";
 
 const APP_ID = 'f2898af5-23f2-4ee7-a0f4-045661dbfca8';
 
@@ -259,6 +259,14 @@ export class VonageRoom extends Room {
       this.session.unpublish(this.screenPublisher);
       this.screenPublisher.destroy();
     }
+  }
+
+  public signal(event: SignalEvent): void {
+    this.session?.signal({
+      data: JSON.stringify(event)
+    }, (_error) => {
+      // Do nothing
+    });
   }
 
   public disconnect(): Promise<void> {

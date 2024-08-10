@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import '../App.css';
 import Video from './Video';
 import { Participant, Room, AudioTrack, VideoTrack } from '../video-core/abstract/VideoCore';
 
@@ -7,9 +6,10 @@ interface VideoAppProps {
   room: Room;
   roomName: string;
   roomToken: string;
+  reset: () => void;
 }
 
-export default function VideoApp({ room, roomName, roomToken }: VideoAppProps) {
+export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppProps) {
   const [connected, setConnected] = useState(false);
   const [audioTrack, setAudioTrack] = useState<AudioTrack | undefined>();
   const [videoTrack, setVideoTrack] = useState<VideoTrack | undefined>();
@@ -161,61 +161,68 @@ export default function VideoApp({ room, roomName, roomToken }: VideoAppProps) {
 
   const participants = Array.from(remoteParticipants.values());
   return (
-    <div className="App">
-      <header className="App-header">
-        {!connected &&
-          <div>
-            <button onClick={acquireHardware}>Acquire Hardware</button>
-            <button onClick={connect} disabled={!audioTrack || !videoTrack}>Connect</button>
-          </div>
+    <div>
+      {!connected &&
+        <div>
+          <button onClick={reset}>Reset</button>
+          <button onClick={acquireHardware}>Acquire Hardware</button>
+          <button onClick={connect} disabled={!audioTrack || !videoTrack}>Connect</button>
+        </div>
+      }
+      {connected &&
+        <button onClick={disconnect}>Disconnect</button>
+      }
+      <div>
+        {!!audioTrack &&
+          <button onClick={toggleCamera}>{`${cameraEnabled ? 'Disable' : 'Enable'} Camera`}</button>
+        }
+        {!!audioTrack &&
+          <button onClick={toggleMic}>{`${micEnabled ? 'Disable' : 'Enable'} mic`}</button>
         }
         {connected &&
-          <button onClick={disconnect}>Disconnect</button>
+          <button onClick={toggleScreenshare}>{`${!!screen ? 'Stop' : 'Start'} screenshare`}</button>
         }
-        <div>
-          {/* {!!videoTrack && */}
-            <button onClick={toggleCamera}>{`${cameraEnabled ? 'Disable' : 'Enable'} Camera`}</button>
-          {/* } */}
-          {!!audioTrack &&
-            <button onClick={toggleMic}>{`${micEnabled ? 'Disable' : 'Enable'} mic`}</button>
-          }
-          {connected &&
-            <button onClick={toggleScreenshare}>{`${!!screen ? 'Stop' : 'Start'} screenshare`}</button>
-          }
-          {videoTrack && cameraEnabled && cameraDevices.length > 0 &&
-            <select onChange={changeCamera} value={cameraDeviceId}>
-              {cameraDevices.map(camera => <option key={camera.deviceId} value={camera.deviceId}>{camera.label}</option>)}
-            </select>
-          }
-          {audioTrack && micEnabled && micDevices.length > 0 &&
-            <select onChange={changeMic} value={micDeviceId}>
-              {micDevices.map(mic => <option key={mic.deviceId} value={mic.deviceId}>{mic.label}</option>)}
-            </select>
-          }
-        </div>
-        { !!(audioTrack && videoTrack) &&
-          <Video mirror muted track={videoTrack} />
+        {videoTrack && cameraEnabled && cameraDevices.length > 0 &&
+          <select onChange={changeCamera} value={cameraDeviceId}>
+            {cameraDevices.map(camera => <option key={camera.deviceId} value={camera.deviceId}>{camera.label}</option>)}
+          </select>
         }
-        {!!screen &&
-          <Video muted track={screen} />
+        {audioTrack && micEnabled && micDevices.length > 0 &&
+          <select onChange={changeMic} value={micDeviceId}>
+            {micDevices.map(mic => <option key={mic.deviceId} value={mic.deviceId}>{mic.label}</option>)}
+          </select>
         }
-        {
-          participants.map((participant) => {
-            return (
-              <div key={participant.identity}>
-                <p>{participant.identity}</p>
-                {
-                  [participant.camera, participant.screen].map((track) => {
-                    if (track) {
-                      return <Video key={track.id} track={track} />;
-                    }
-                  })
+      </div>
+      <section className='VideosWrapper'>
+        <section className='Videos'>
+          { !!(audioTrack && videoTrack) &&
+            <div className='Video'>
+              <p className='Name'>Me</p>
+              <Video mirror muted track={videoTrack} />
+            </div>
+          }
+          {!!screen &&
+            <div className='Video'>
+              <p className='Name'>Me</p>
+              <Video muted track={screen} />
+            </div>
+          }
+          {
+            participants.map((participant) => {
+              return [participant.camera, participant.screen].map((track) => {
+                if (track) {
+                  return (
+                    <div className='Video' key={participant.identity}>
+                      <p className='Name'>{participant.identity}</p>
+                      <Video key={track.id} track={track} />
+                    </div>
+                  )
                 }
-              </div>
-            )
-          })
-        }
-      </header>
+              })
+            })
+          }
+        </section>
+      </section>
     </div>
   );
 }

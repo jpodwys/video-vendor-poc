@@ -1,5 +1,5 @@
 import * as Twilio from "twilio-video";
-import { ConnectOptions, TrackOptions, LocalTracks, Room, AudioTrack, VideoTrack, TrackSource } from "../abstract/VideoCore";
+import { ConnectOptions, TrackOptions, LocalTracks, Room, AudioTrack, VideoTrack, TrackSource, SignalEvent } from "../abstract/VideoCore";
 
 export class TwilioLocalVideoTrack extends VideoTrack {
   private localVideoTrack: Twilio.LocalVideoTrack;
@@ -201,6 +201,10 @@ export class TwilioRoom extends Room {
     });
     this.localScreenVideoTrack = undefined;
     this.localScreenAudioTrack = undefined;
+  }
+
+  public signal(event: SignalEvent): void {
+    this.localDataTrack.send(JSON.stringify(event));
   }
 
   public async disconnect() {

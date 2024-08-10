@@ -2,6 +2,17 @@ import { EventEmitter } from 'events';
 
 export type KeyValueObject = {[key: string]: any};
 
+export enum SignalEventTypes {
+  ForceMute = 'ForceMute',
+}
+
+export type SignalEvent = {
+  type: SignalEventTypes;
+  to: string;
+  from: string;
+  payload?: KeyValueObject;
+}
+
 export type LocalTracks = {
   audio: AudioTrack;
   video: VideoTrack;
@@ -99,7 +110,7 @@ export abstract class Room extends EventEmitter {
   public abstract disconnect(): Promise<void>;
   public abstract startScreenshare(stream: MediaStream): Promise<VideoTrack>;
   public abstract stopScreenShare(): void;
-  // public abstract signal(data: KeyValueObject): void;
+  public abstract signal(event: SignalEvent): void;
   // public abstract setAudioOutputDevice(deviceId: string): void;
 }
 

@@ -1,3 +1,4 @@
+import './App.css';
 import { useCallback, useState } from "react";
 import VideoApp from "./components/VideoApp";
 import { TwilioRoom } from "./video-core/adapters/VideoCoreTwilio";
@@ -28,7 +29,7 @@ function App() {
   }, [roomName, roomToken]);
 
   return (
-    <div>
+    <div className="App">
       {!room && (
         <>
           <h1>Select Vendor</h1>
@@ -43,7 +44,7 @@ function App() {
         </>
       )}
       {room && roomName && roomToken && (
-        <VideoApp room={room} roomName={roomName} roomToken={roomToken} />
+        <VideoApp room={room} roomName={roomName} roomToken={roomToken} reset={() => setRoom(undefined)} />
       )}
     </div>
   );
