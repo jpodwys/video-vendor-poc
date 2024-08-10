@@ -1,17 +1,6 @@
 import * as OT from '@opentok/client'
 import { ConnectOptions, TrackOptions, LocalTracks, Participant, Room, AudioTrack, VideoTrack, TrackSource } from "../abstract/VideoCore";
 
-export type VCSubscriber = OT.Subscriber & {
-  _: {
-    webRtcStream: () => MediaStream;
-  };
-}
-export type VCPublisher = OT.Publisher & {
-  _: {
-    webRtcStream: () => MediaStream;
-  };
-}
-
 const APP_ID = 'f2898af5-23f2-4ee7-a0f4-045661dbfca8';
 
 export class VonageRemoteVideoTrack extends VideoTrack {
@@ -78,7 +67,7 @@ export class VonageRemoteAudioTrack extends AudioTrack {
 }
 
 export class VonageLocalVideoTrack extends VideoTrack {
-  public publisher: VCPublisher | undefined;
+  public publisher: OT.Publisher | undefined;
   public videoElement: HTMLVideoElement | undefined;
 
   public attach(el: HTMLVideoElement) {
@@ -102,7 +91,7 @@ export class VonageLocalVideoTrack extends VideoTrack {
 }
 
 export class VonageLocalAudioTrack extends AudioTrack {
-  public publisher: VCPublisher | undefined;
+  public publisher: OT.Publisher | undefined;
   public audioElement: HTMLAudioElement | undefined;
 
   public attach(el: HTMLAudioElement) {
@@ -291,6 +280,7 @@ export class VonageRoom extends Room {
       }
 
       const subscriber = this.session.subscribe(stream, undefined, { insertDefaultUI: false });
+
       subscriber.on('videoElementCreated', ({ element }) => {
         const remoteStream = (element as HTMLVideoElement).srcObject as MediaStream;
         const videoTrack = remoteStream.getVideoTracks()[0] as MediaStreamTrack | undefined;
@@ -337,8 +327,22 @@ export class VonageRoom extends Room {
             remoteParticipant[key] = remoteAudioTrack;
             // I should not attach inside of VideoCore, but this is fine for the PoC
             remoteAudioTrack.attach(document.createElement('audio'));
-            console.log('HERCULES', 'trackSubscribed - audio', { source });
             this.emit('trackSubscribed', remoteAudioTrack, remoteParticipant);
+          }
+        }
+      });
+
+      subscriber.on('videoDisabled', ({ reason }) => {
+        if (reason === 'publishVideo') {
+          const { identity } = JSON.parse(stream?.connection.data ?? '{}') as { identity: string };
+          const remoteParticipant = this.participants.get(identity);
+          const source = stream.name as TrackSource;
+          if (remoteParticipant) {
+            const track = remoteParticipant[source];
+            if (track) {
+              delete remoteParticipant[source];
+              this.emit('trackUnpublished', track, remoteParticipant);
+            }
           }
         }
       });

@@ -39,7 +39,8 @@ export default function VideoApp({ room, roomName, roomToken }: VideoAppProps) {
     };
 
     const onParticipantDisconnected = (remoteParticipant: Participant) => {
-      updateParticipant(remoteParticipant);
+      remoteParticipants.delete(remoteParticipant.identity);
+      setRemoteParticipants(new Map(remoteParticipants));
     };
 
     const onTrackSubscribed = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {

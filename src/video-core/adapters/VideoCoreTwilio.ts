@@ -210,10 +210,6 @@ export class TwilioRoom extends Room {
     });
   }
 
-  /**
-   * I believe Twilio's setup needs to handle already-connected
-   * participants and already-published tracks.
-   */
   private attachListeners(room: Twilio.Room) {
     room.on('participantConnected', ({ identity }: Twilio.RemoteParticipant) => {
       this.participants.set(identity, { identity });
@@ -270,7 +266,6 @@ export class TwilioRoom extends Room {
     });
 
     room.on('trackUnpublished', (publication: Twilio.RemoteTrackPublication, remoteParticipant: Twilio.RemoteParticipant) => {
-      console.log('HERCULES', 'trackUnsubscribed');
       const participant = this.participants.get(remoteParticipant.identity);
       if (participant) {
         const trackName = publication.trackName as TrackSource;
