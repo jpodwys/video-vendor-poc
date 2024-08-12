@@ -15,8 +15,10 @@ interface TrackGroupProps {
   local?: boolean;
 }
 
-export const UserTrackGroup = ({ room, group, mirror = false, local = false }: TrackGroupProps) => {
+export const UserTrackGroup = ({ room, group }: TrackGroupProps) => {
   const { identity, kind, audio, video } = group;
+  const local = identity === room.identity;
+  const mirror = local && kind === 'default';
 
   const forceMute = (identity: string) => {
     room.signal({

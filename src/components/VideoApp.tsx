@@ -166,11 +166,21 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
   const disconnect = () => {
     room.disconnect();
     setConnected(false);
-    setAudioTrack(undefined);
     setVideoTrack(undefined);
+    setAudioTrack(undefined);
+    setScreen(undefined);
+    setRemoteParticipants(new Map());
   };
 
-  const participants = Array.from(remoteParticipants.values());
+  const localParticipant: Participant = {
+    identity: room.identity,
+    camera: videoTrack,
+    mic: audioTrack,
+    screen,
+  };
+
+  const participants = [ localParticipant, ...Array.from(remoteParticipants.values()) ];
+
   return (
     <div>
       {!connected &&
@@ -208,30 +218,6 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
       </div>
       <section className='VideosWrapper'>
         <section className='Videos'>
-          {audioTrack &&
-            <UserTrackGroup
-              room={room}
-              local
-              mirror
-              group={{
-                identity: 'Me',
-                kind: 'default',
-                audio: audioTrack,
-                video: videoTrack,
-              }}
-            />
-          }
-          {!!screen &&
-            <UserTrackGroup
-              room={room}
-              local
-              group={{
-                identity: 'Me',
-                kind: 'screen',
-                video: screen,
-              }}
-            />
-          }
           {
             participants.map((participant) => {
               const { identity, camera, mic, screen, screenAudio } = participant;
