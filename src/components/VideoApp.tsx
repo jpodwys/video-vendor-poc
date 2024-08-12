@@ -147,7 +147,7 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
   };
 
   const acquireHardware = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { width: 640, height: 480 } });
     const { audio, video } = await room.createLocalTracks(stream);
     setAudioTrack(audio);
     setVideoTrack(video);

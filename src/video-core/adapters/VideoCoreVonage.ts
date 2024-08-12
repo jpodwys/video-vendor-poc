@@ -257,7 +257,7 @@ export class VonageRoom extends Room {
 
       this.screenPublisher = OT.initPublisher(undefined, {
         insertDefaultUI: false,
-        audioSource: audioTrack,
+        audioSource: audioTrack ?? false,
         videoSource: videoTrack,
         name: 'screen',
       });
