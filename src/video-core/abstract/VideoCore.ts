@@ -36,38 +36,25 @@ export type LocalTracks = {
 interface VideoCoreEvents {
   participantConnected: (participant: Participant) => void;
   participantDisconnected: (participant: Participant) => void;
-  // remoteParticipant | null
   dominantSpeakerChanged: (participant: Participant) => void;
   trackSubscribed: (track: AudioTrack | VideoTrack, participant: Participant) => void;
   trackUnsubscribed: (track: AudioTrack | VideoTrack, participant: Participant) => void;
   trackUnpublished: (track: AudioTrack | VideoTrack, participant: Participant) => void;
-  // publication (used for trackSid and isTrackEnabled)
   trackEnabled: (track: AudioTrack, participant: Participant) => void;
-  // same event handler as above - publication (used for trackSid and isTrackEnabled)
   trackDisabled: (track: AudioTrack, participant: Participant) => void;
-  /**
-   * I DON'T THINK THIS IS NECESSARY FOR TWILIO
-   * IS THIS THE EQUIVALENT TO WHAT VONAGE NEEDS TO KEEP PLAYING
-   * SIMULCAST TRACK LAYER SWITCHES????
-   */
-  // track (uses sid and mediaStreamTrack)
   trackStarted: (track: AudioTrack | VideoTrack) => void;
-  // data, track (unused), participant (used for identity)
-  trackMessage: () => void;
-  // track
+  trackMessage: (participant: Participant) => void;
   trackDimensionsChanged: (track: VideoTrack, participant: Participant) => void;
-  // track, publication (unused), participant (used for sid and identity)
-  trackSwitchedOff: () => void;
-  // track, publication (unused), participant (used for sid and identity)
-  trackSwitchedOn: () => void;
-  // room (unused), error
-  disconnected: () => void;
+  trackSwitchedOff: (track: VideoTrack, participant: Participant) => void;
+  trackSwitchedOn: (track: VideoTrack, participant: Participant) => void;
+  disconnected: (error?: string) => void;
   /**
    * This is not supported as a room-level event in Twilio.
    * I have to attach per-participant event handlers for this.
    */
   // participant (used for identity and networkQualityLevel)
   networkQualityChanged: () => void;
+  localMicDisabled: () => void;
 }
 
 export declare interface Room {
@@ -107,15 +94,13 @@ export interface ConnectOptions {
  */
 export abstract class Room extends EventEmitter {
   public readonly participants: Map<string, Participant> = new Map();
-  public readonly localParticipant: Participant | undefined;
+  public abstract get identity(): string;
   public abstract createLocalTracks(stream: MediaStream): Promise<LocalTracks>;
-  // I need to ensure this approach can handle PTZ devices with a name property for both vendors
   public abstract startCamera(track: MediaStreamTrack): Promise<VideoTrack>;
   public abstract stopCamera(): Promise<void>;
   public abstract enableMic(enable: boolean): void;
   public abstract changeCamera(track: MediaStreamTrack): Promise<VideoTrack>;
   public abstract changeMic(deviceId: string): Promise<AudioTrack | undefined>;
-  // Should connect accept tracks or should it just be assumed it will automatically publish all existing local tracks?
   public abstract connect(options: ConnectOptions): Promise<void>;
   /**
    * This should cleanup all event listeners

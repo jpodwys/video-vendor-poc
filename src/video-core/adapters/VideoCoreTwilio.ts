@@ -1,5 +1,5 @@
 import * as Twilio from "twilio-video";
-import { ConnectOptions, TrackOptions, LocalTracks, Room, AudioTrack, VideoTrack, TrackSource, SignalEvent } from "../abstract/VideoCore";
+import { ConnectOptions, TrackOptions, LocalTracks, Room, AudioTrack, VideoTrack, TrackSource, SignalEvent, SignalEventTypes } from "../abstract/VideoCore";
 
 export class TwilioLocalVideoTrack extends VideoTrack {
   private localVideoTrack: Twilio.LocalVideoTrack;
@@ -100,6 +100,10 @@ export class TwilioRoom extends Room {
   private localMicTrack: Twilio.LocalAudioTrack | undefined;
   private localScreenVideoTrack: Twilio.LocalVideoTrack | undefined;
   private localScreenAudioTrack: Twilio.LocalAudioTrack | undefined;
+
+  public get identity(): string {
+    return this.room?.localParticipant.identity ?? '';
+  }
 
   public createLocalTracks(stream: MediaStream): Promise<LocalTracks> {
     return new Promise((resolve, _reject) => {
@@ -322,6 +326,22 @@ export class TwilioRoom extends Room {
       const participant = this.participants.get(remoteParticipant.identity);
       if (participant && participant.mic) {
         this.emit('trackDisabled', participant.mic, participant);
+      }
+    });
+
+    room.on('trackMessage', (data: string | ArrayBuffer, track: Twilio.RemoteDataTrack, remoteParticipant: Twilio.RemoteParticipant) => {
+      if (data instanceof ArrayBuffer) {
+        return;
+      }
+      const { type, to } = JSON.parse(data);
+      if (to !== this.identity) {
+        return;
+      }
+      switch(type as SignalEventTypes) {
+        case SignalEventTypes.ForceMute: {
+          this.enableMic(false);
+          this.emit('localMicDisabled');
+        }
       }
     });
   }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Participant, Room, AudioTrack, VideoTrack } from '../video-core/abstract/VideoCore';
-import { TrackGroup, UserTrackGroup } from './TrackGroup';
+import { TrackGroup, UserTrackGroup } from './UserTrackGroup';
 
 interface VideoAppProps {
   room: Room;
@@ -59,6 +59,10 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
       updateParticipant(remoteParticipant);
     };
 
+    const onLocalMicDisabled = () => {
+      setMicEnabled(false);
+    };
+
     room.on('participantConnected', onParticipantConnected)
     room.on('participantDisconnected', onParticipantDisconnected);
     room.on('trackSubscribed', onTrackSubscribed);
@@ -66,6 +70,7 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
     room.on('trackUnpublished', onTrackUnpublished);
     room.on('trackEnabled', onTrackEnabledChanged);
     room.on('trackDisabled', onTrackEnabledChanged);
+    room.on('localMicDisabled', onLocalMicDisabled);
 
     return () => {
       room.off('trackSubscribed', onTrackSubscribed);
@@ -205,6 +210,8 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
         <section className='Videos'>
           {audioTrack &&
             <UserTrackGroup
+              room={room}
+              local
               mirror
               group={{
                 identity: 'Me',
@@ -215,11 +222,15 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
             />
           }
           {!!screen &&
-            <UserTrackGroup group={{
-              identity: 'Me',
-              kind: 'screen',
-              video: screen,
-            }} />
+            <UserTrackGroup
+              room={room}
+              local
+              group={{
+                identity: 'Me',
+                kind: 'screen',
+                video: screen,
+              }}
+            />
           }
           {
             participants.map((participant) => {
@@ -244,7 +255,7 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
                 tracks.push(screenTracks);
               }
 
-              return tracks.map(trackGroup => <UserTrackGroup group={trackGroup} />);
+              return tracks.map(trackGroup => <UserTrackGroup key={trackGroup.identity} room={room} group={trackGroup} />);
             })
           }
         </section>

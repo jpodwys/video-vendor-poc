@@ -1,5 +1,5 @@
 import * as OT from '@opentok/client'
-import { ConnectOptions, TrackOptions, LocalTracks, Participant, Room, AudioTrack, VideoTrack, TrackSource, SignalEvent } from "../abstract/VideoCore";
+import { ConnectOptions, TrackOptions, LocalTracks, Participant, Room, AudioTrack, VideoTrack, TrackSource, SignalEvent, SignalEventTypes } from "../abstract/VideoCore";
 
 const APP_ID = 'f2898af5-23f2-4ee7-a0f4-045661dbfca8';
 
@@ -138,6 +138,12 @@ export class VonageRoom extends Room {
   private defaultPublisher: OT.Publisher | undefined;
   private screenPublisher: OT.Publisher | undefined;
   private stream: MediaStream | undefined;
+
+  public get identity(): string {
+    const data = this.session?.connection?.data;
+    const { identity } = JSON.parse(data ?? '{}');
+    return identity ?? '';
+  }
 
   public createLocalTracks(stream: MediaStream): Promise<LocalTracks> {
     return new Promise((resolve, _reject) => {
@@ -285,9 +291,11 @@ export class VonageRoom extends Room {
 
   public signal(event: SignalEvent): void {
     this.session?.signal({
-      data: JSON.stringify(event)
-    }, (_error) => {
-      // Do nothing
+      data: JSON.stringify(event),
+    }, (error) => {
+      if (error) {
+        console.log('Vonage Signal Error', error);
+      }
     });
   }
 
@@ -429,6 +437,18 @@ export class VonageRoom extends Room {
         }
       }
     });
-  }
 
+    this.session?.on('signal', ({ data }) => {
+      const { type, to } = JSON.parse(data ?? '{}');
+      if (to !== this.identity) {
+        return;
+      }
+      switch(type as SignalEventTypes) {
+        case SignalEventTypes.ForceMute: {
+          this.enableMic(false);
+          this.emit('localMicDisabled');
+        }
+      }
+    });
+  }
 }
