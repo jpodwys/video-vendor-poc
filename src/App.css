@@ -2,6 +2,10 @@ body {
   background-color: #282c34;
 }
 
+p {
+  margin: 10px 0;
+}
+
 .App {
   text-align: center;
   min-height: 100vh;
@@ -26,15 +30,20 @@ body {
 .Video {
   position: relative;
   display: flex;
-  /* width: 640px; */
   height: 480px;
-  padding: 5px;
+  margin: 5px;
+  width: 640px;
+  background-color: black;
 }
 
-.Name {
-  position: absolute;
+.TrackGroupText {
   z-index: 10;
+  position: absolute;
+  display: flex;
+  justify-content: space-evenly;
+  font-size: 20px;
+  width: 100%;
+  background-color: #000000b0;
   margin: 0;
-  bottom: 10px;
-  left: 10px;
+  bottom: 0px;
 }

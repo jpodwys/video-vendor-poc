@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import Video from './Video';
 import { Participant, Room, AudioTrack, VideoTrack } from '../video-core/abstract/VideoCore';
+import { TrackGroup, UserTrackGroup } from './TrackGroup';
 
 interface VideoAppProps {
   room: Room;
@@ -55,11 +55,17 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
       updateParticipant(remoteParticipant);
     };
 
+    const onTrackEnabledChanged = (track: AudioTrack, remoteParticipant: Participant) => {
+      updateParticipant(remoteParticipant);
+    };
+
     room.on('participantConnected', onParticipantConnected)
     room.on('participantDisconnected', onParticipantDisconnected);
     room.on('trackSubscribed', onTrackSubscribed);
     room.on('trackUnsubscribed', onTrackUnsubscribed)
     room.on('trackUnpublished', onTrackUnpublished);
+    room.on('trackEnabled', onTrackEnabledChanged);
+    room.on('trackDisabled', onTrackEnabledChanged);
 
     return () => {
       room.off('trackSubscribed', onTrackSubscribed);
@@ -182,6 +188,8 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
         {connected &&
           <button onClick={toggleScreenshare}>{`${!!screen ? 'Stop' : 'Start'} screenshare`}</button>
         }
+      </div>
+      <div>
         {videoTrack && cameraEnabled && cameraDevices.length > 0 &&
           <select onChange={changeCamera} value={cameraDeviceId}>
             {cameraDevices.map(camera => <option key={camera.deviceId} value={camera.deviceId}>{camera.label}</option>)}
@@ -195,30 +203,48 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
       </div>
       <section className='VideosWrapper'>
         <section className='Videos'>
-          { !!(audioTrack && videoTrack) &&
-            <div className='Video'>
-              <p className='Name'>Me</p>
-              <Video mirror muted track={videoTrack} />
-            </div>
+          {audioTrack &&
+            <UserTrackGroup
+              mirror
+              group={{
+                identity: 'Me',
+                kind: 'default',
+                audio: audioTrack,
+                video: videoTrack,
+              }}
+            />
           }
           {!!screen &&
-            <div className='Video'>
-              <p className='Name'>Me</p>
-              <Video muted track={screen} />
-            </div>
+            <UserTrackGroup group={{
+              identity: 'Me',
+              kind: 'screen',
+              video: screen,
+            }} />
           }
           {
             participants.map((participant) => {
-              return [participant.camera, participant.screen].map((track) => {
-                if (track) {
-                  return (
-                    <div className='Video' key={participant.identity}>
-                      <p className='Name'>{participant.identity}</p>
-                      <Video key={track.id} track={track} />
-                    </div>
-                  )
-                }
-              })
+              const { identity, camera, mic, screen, screenAudio } = participant;
+
+              const defaultTracks: TrackGroup = {
+                identity,
+                kind: 'default',
+                video: camera,
+                audio: mic,
+              };
+
+              const screenTracks: TrackGroup = {
+                identity,
+                kind: 'screen',
+                video: screen,
+                audio: screenAudio,
+              };
+
+              const tracks = [defaultTracks];
+              if (screenTracks.video) {
+                tracks.push(screenTracks);
+              }
+
+              return tracks.map(trackGroup => <UserTrackGroup group={trackGroup} />);
             })
           }
         </section>

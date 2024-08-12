@@ -1,3 +1,16 @@
+/**
+ * I think it's become clear that VideoCore needs to maintain an internal
+ * dataset of participants and tracks. Additionally, in considering what
+ * VideoCore should emit, I wonder if it should emit the object I'll
+ * eventually store in redux. The need to normalize VideoCore's output
+ * prior to storing it in redux feels like an unnecessary step.
+ *
+ * If I continue outputting data I then need to normalize, it would be in
+ * the interest of changing as little application code as possible.
+ * However, if I make VideoCore output what I want to store in redux, the
+ * result will be simpler application code.
+ */
+
 import { EventEmitter } from 'events';
 
 export type KeyValueObject = {[key: string]: any};
@@ -29,9 +42,9 @@ interface VideoCoreEvents {
   trackUnsubscribed: (track: AudioTrack | VideoTrack, participant: Participant) => void;
   trackUnpublished: (track: AudioTrack | VideoTrack, participant: Participant) => void;
   // publication (used for trackSid and isTrackEnabled)
-  trackEnabled: (track: AudioTrack | VideoTrack) => void;
+  trackEnabled: (track: AudioTrack, participant: Participant) => void;
   // same event handler as above - publication (used for trackSid and isTrackEnabled)
-  trackDisabled: (track: AudioTrack | VideoTrack) => void;
+  trackDisabled: (track: AudioTrack, participant: Participant) => void;
   /**
    * I DON'T THINK THIS IS NECESSARY FOR TWILIO
    * IS THIS THE EQUIVALENT TO WHAT VONAGE NEEDS TO KEEP PLAYING
@@ -42,7 +55,7 @@ interface VideoCoreEvents {
   // data, track (unused), participant (used for identity)
   trackMessage: () => void;
   // track
-  trackDimensionsChanged: () => void;
+  trackDimensionsChanged: (track: VideoTrack, participant: Participant) => void;
   // track, publication (unused), participant (used for sid and identity)
   trackSwitchedOff: () => void;
   // track, publication (unused), participant (used for sid and identity)
@@ -150,6 +163,7 @@ abstract class Track {
 
 export abstract class AudioTrack extends Track {
   public readonly kind = 'audio';
+  public abstract get isEnabled(): boolean;
 }
 
 export abstract class VideoTrack extends Track {

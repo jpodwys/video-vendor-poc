@@ -30,6 +30,10 @@ export class TwilioLocalAudioTrack extends AudioTrack {
     this.localAudioTrack = localAudioTrack;
   }
 
+  public get isEnabled(): boolean {
+    return this.localAudioTrack.isEnabled;
+  }
+
   public attach(el: HTMLAudioElement): void {
     this.localAudioTrack.attach(el);
   }
@@ -70,6 +74,10 @@ export class TwilioRemoteAudioTrack extends AudioTrack {
   constructor(options: TrackOptions, remoteAudioTrack: Twilio.RemoteAudioTrack) {
     super(options);
     this.remoteAudioTrack = remoteAudioTrack;
+  }
+
+  public get isEnabled(): boolean {
+    return this.remoteAudioTrack.isEnabled;
   }
 
   public attach(el: HTMLAudioElement): void {
@@ -118,8 +126,8 @@ export class TwilioRoom extends Room {
 
   public stopCamera(): Promise<void> {
     if (this.localCameraTrack) {
-      this.localCameraTrack.stop();
       this.room?.localParticipant.unpublishTrack(this.localCameraTrack);
+      this.localCameraTrack.stop();
     }
     return Promise.resolve();
   }
@@ -128,8 +136,24 @@ export class TwilioRoom extends Room {
     this.localMicTrack?.enable(enable);
   }
 
+  /**
+   * This is causing problems we aren't seeing in the main app.
+   * It seems there's a race condition when unpublishing then
+   * immeidately publishing a track with the same name as the
+   * old track. Idealy, I wouldn't unpublish, I'd just call
+   * track.replace(constraints), but in order to reduce code
+   * paths while supporting PTZ, I need to create a new track
+   * so I can provide a name for the track.
+   *
+   * For the moment, I'm just adding this delay. This must be
+   * a race condition we've never encountered in the main app,
+   * likely because we only name ptz and screen tracks, never
+   * camera tracks. Perhaps I should embrace that here. I can
+   * completely hide that within Twilio's VideoCore adapter.
+   */
   public async changeCamera(track: MediaStreamTrack): Promise<VideoTrack> {
     await this.stopCamera();
+    await new Promise(r => setTimeout(r, 1000));
     return this.startCamera(track);
   }
 
@@ -278,6 +302,26 @@ export class TwilioRoom extends Room {
           delete participant[trackName];
           this.emit('trackUnsubscribed', track, participant);
         }
+      }
+    });
+
+    room.on('trackEnabled', (publication: Twilio.RemoteTrackPublication, remoteParticipant: Twilio.RemoteParticipant) => {
+      if (publication.kind !== 'audio') {
+        return;
+      }
+      const participant = this.participants.get(remoteParticipant.identity);
+      if (participant && participant.mic) {
+        this.emit('trackEnabled', participant.mic, participant);
+      }
+    });
+
+    room.on('trackDisabled', (publication: Twilio.RemoteTrackPublication, remoteParticipant: Twilio.RemoteParticipant) => {
+      if (publication.kind !== 'audio') {
+        return;
+      }
+      const participant = this.participants.get(remoteParticipant.identity);
+      if (participant && participant.mic) {
+        this.emit('trackDisabled', participant.mic, participant);
       }
     });
   }
