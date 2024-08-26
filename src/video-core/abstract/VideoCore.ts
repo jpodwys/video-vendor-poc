@@ -125,7 +125,6 @@ abstract class Track {
   protected mediaStreamTrack: MediaStreamTrack;
   public abstract get element(): HTMLVideoElement | HTMLAudioElement | undefined;
 
-  public abstract attach(el: HTMLVideoElement | HTMLAudioElement): void;
   public abstract detach(): void;
   public abstract stop(): void;
 
@@ -139,19 +138,19 @@ abstract class Track {
 export abstract class AudioTrack extends Track {
   public readonly kind = 'audio';
   public abstract get isEnabled(): boolean;
-  private _element: HTMLAudioElement | undefined;
-
-  public attach(el: HTMLAudioElement): void {
-    this._element = el;
+  private _element: HTMLAudioElement = document.createElement('audio');
+  public get element(): HTMLAudioElement {
+    return this._element;
   }
+
+  public abstract attach(): void;
+
   public detach(): void {
     if (this._element) {
       this._element.srcObject = null;
-      this._element = undefined;
+      this._element.remove();
+      this._element = document.createElement('audio');
     }
-  }
-  public get element(): HTMLAudioElement | undefined {
-    return this._element;
   }
 }
 
@@ -159,6 +158,9 @@ export abstract class VideoTrack extends Track {
   public readonly kind = 'video';
   public readonly isPTZ: boolean;
   private _element: HTMLVideoElement | undefined;
+  public get element(): HTMLVideoElement | undefined {
+    return this._element;
+  }
   public get dimensions () {
     const { width, height } = this.mediaStreamTrack.getSettings();
     return { width, height };
@@ -170,11 +172,9 @@ export abstract class VideoTrack extends Track {
   public detach(): void {
     if (this._element) {
       this._element.srcObject = null;
+      this._element.remove();
       this._element = undefined;
     }
-  }
-  public get element(): HTMLVideoElement | undefined {
-    return this._element;
   }
 
   constructor(options: TrackOptions) {

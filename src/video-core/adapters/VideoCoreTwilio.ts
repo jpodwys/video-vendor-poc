@@ -36,9 +36,8 @@ export class TwilioLocalAudioTrack extends AudioTrack {
     return this.localAudioTrack.isEnabled;
   }
 
-  public attach(el: HTMLAudioElement): void {
-    super.attach(el);
-    this.localAudioTrack.attach(el);
+  public attach(): void {
+    this.localAudioTrack.attach(this.element);
   }
 
   public detach(): void {
@@ -88,11 +87,10 @@ export class TwilioRemoteAudioTrack extends AudioTrack {
     return this.remoteAudioTrack.isEnabled;
   }
 
-  public attach(el: HTMLAudioElement): void {
-    super.attach(el);
-    this.remoteAudioTrack.attach(el);
+  public attach(): void {
+    this.remoteAudioTrack.attach(this.element);
     if (this.room.audioOutputDeviceId) {
-      el.setSinkId?.(this.room.audioOutputDeviceId);
+      this.element?.setSinkId?.(this.room.audioOutputDeviceId);
     }
   }
 
@@ -305,17 +303,17 @@ export class TwilioRoom extends Room {
       }
     });
 
-    room.on('trackUnsubscribed', (remoteTrack: Twilio.RemoteTrack, _publication: Twilio.RemoteTrackPublication, remoteParticipant: Twilio.RemoteParticipant) => {
-      const participant = this.participants.get(remoteParticipant.identity);
-      if (participant) {
-        const trackName = remoteTrack.name as TrackSource;
-        const track = participant[trackName];
-        if (track) {
-          delete participant[trackName];
-          this.emit('trackUnsubscribed', track, participant);
-        }
-      }
-    });
+    // room.on('trackUnsubscribed', (remoteTrack: Twilio.RemoteTrack, _publication: Twilio.RemoteTrackPublication, remoteParticipant: Twilio.RemoteParticipant) => {
+    //   const participant = this.participants.get(remoteParticipant.identity);
+    //   if (participant) {
+    //     const trackName = remoteTrack.name as TrackSource;
+    //     const track = participant[trackName];
+    //     if (track) {
+    //       delete participant[trackName];
+    //       this.emit('trackUnsubscribed', track, participant);
+    //     }
+    //   }
+    // });
 
     room.on('trackUnpublished', (publication: Twilio.RemoteTrackPublication, remoteParticipant: Twilio.RemoteParticipant) => {
       const participant = this.participants.get(remoteParticipant.identity);
@@ -324,7 +322,7 @@ export class TwilioRoom extends Room {
         const track = participant[trackName];
         if (track) {
           delete participant[trackName];
-          this.emit('trackUnsubscribed', track, participant);
+          this.emit('trackUnpublished', track, participant);
         }
       }
     });

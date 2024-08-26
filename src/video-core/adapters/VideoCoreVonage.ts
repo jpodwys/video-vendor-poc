@@ -40,7 +40,6 @@ export class VonageRemoteVideoTrack extends VideoTrack {
 }
 
 export class VonageRemoteAudioTrack extends AudioTrack {
-  private audioElement: HTMLAudioElement | undefined;
   private subscriber: OT.Subscriber;
 
   constructor(options: TrackOptions, subscriber: OT.Subscriber) {
@@ -52,10 +51,8 @@ export class VonageRemoteAudioTrack extends AudioTrack {
     return this.subscriber.stream?.hasAudio ?? false;
   }
 
-  public attach(el: HTMLAudioElement) {
-    super.attach(el);
-    el.srcObject = new MediaStream([this.mediaStreamTrack]);
-    this.audioElement = el;
+  public attach() {
+    this.element.srcObject = new MediaStream([this.mediaStreamTrack]);
   }
 
   // public detach() {
@@ -64,9 +61,6 @@ export class VonageRemoteAudioTrack extends AudioTrack {
 
   public stop() {
     this.mediaStreamTrack.stop();
-    if (this.audioElement) {
-      this.audioElement.srcObject = null;
-    }
   }
 }
 
@@ -91,7 +85,6 @@ export class VonageLocalVideoTrack extends VideoTrack {
 
 export class VonageLocalAudioTrack extends AudioTrack {
   public publisher: OT.Publisher;
-  public audioElement: HTMLAudioElement | undefined;
 
   constructor(options: TrackOptions, publisher: OT.Publisher) {
     super(options);
@@ -102,10 +95,8 @@ export class VonageLocalAudioTrack extends AudioTrack {
     return this.publisher.stream?.hasAudio ?? true;
   }
 
-  public attach(el: HTMLAudioElement) {
-    super.attach(el);
-    el.srcObject = new MediaStream([this.mediaStreamTrack]);
-    this.audioElement = el;
+  public attach() {
+    this.element.srcObject = new MediaStream([this.mediaStreamTrack]);
   }
 
   // public detach() {
@@ -114,9 +105,6 @@ export class VonageLocalAudioTrack extends AudioTrack {
 
   public stop() {
     this.mediaStreamTrack.stop();
-    if (this.audioElement) {
-      this.audioElement.srcObject = null;
-    }
   }
 }
 

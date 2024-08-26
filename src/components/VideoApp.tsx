@@ -49,21 +49,18 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
     const onTrackSubscribed = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {
       updateParticipant(remoteParticipant);
       if (remoteTrack.kind === 'audio') {
-        remoteTrack.attach(document.createElement('audio'));
+        remoteTrack.attach();
       }
     };
 
-    const onTrackUnsubscribed = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {
-      updateParticipant(remoteParticipant);
-      const participant = remoteParticipants.get(remoteParticipant.identity);
-      if (participant) {
-        participant.mic?.detach();
-        participant.screenAudio?.detach();
-      }
-    };
+    // const onTrackUnsubscribed = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {
+    //   updateParticipant(remoteParticipant);
+    //   remoteTrack.detach();
+    // };
 
     const onTrackUnpublished = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {
       updateParticipant(remoteParticipant);
+      remoteTrack.detach();
     };
 
     const onTrackEnabledChanged = (track: AudioTrack, remoteParticipant: Participant) => {
@@ -77,7 +74,7 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
     room.on('participantConnected', onParticipantConnected)
     room.on('participantDisconnected', onParticipantDisconnected);
     room.on('trackSubscribed', onTrackSubscribed);
-    room.on('trackUnsubscribed', onTrackUnsubscribed)
+    // room.on('trackUnsubscribed', onTrackUnsubscribed);
     room.on('trackUnpublished', onTrackUnpublished);
     room.on('trackEnabled', onTrackEnabledChanged);
     room.on('trackDisabled', onTrackEnabledChanged);
