@@ -4,7 +4,6 @@ import { ConnectOptions, TrackOptions, LocalTracks, Participant, Room, AudioTrac
 const APP_ID = 'f2898af5-23f2-4ee7-a0f4-045661dbfca8';
 
 export class VonageRemoteVideoTrack extends VideoTrack {
-  private videoElement: HTMLVideoElement | undefined;
   private sourceVideoElement: HTMLVideoElement;
 
   constructor(options: TrackOptions, sourceVideoElement: HTMLVideoElement) {
@@ -16,28 +15,25 @@ export class VonageRemoteVideoTrack extends VideoTrack {
       if (video) {
         this.mediaStreamTrack = video;
       }
-      if (video && this.videoElement) {
-        this.videoElement.srcObject = new MediaStream([video]);
+      if (video && this.element) {
+        this.element.srcObject = new MediaStream([video]);
       }
     });
   }
 
   public attach(el: HTMLVideoElement) {
+    super.attach(el);
     el.srcObject = new MediaStream([this.mediaStreamTrack]);
-    this.videoElement = el;
   }
 
-  public detach() {
-    if (this.videoElement) {
-      this.videoElement.srcObject = null;
-    }
-    this.videoElement = undefined;
-  }
+  // public detach() {
+  //   super.detach();
+  // }
 
   public stop() {
     this.mediaStreamTrack.stop();
-    if (this.videoElement) {
-      this.videoElement.srcObject = null;
+    if (this.element) {
+      this.element.srcObject = null;
     }
     this.sourceVideoElement.srcObject = null;
   }
@@ -57,16 +53,14 @@ export class VonageRemoteAudioTrack extends AudioTrack {
   }
 
   public attach(el: HTMLAudioElement) {
+    super.attach(el);
     el.srcObject = new MediaStream([this.mediaStreamTrack]);
     this.audioElement = el;
   }
 
-  public detach() {
-    if (this.audioElement) {
-      this.audioElement.srcObject = null;
-    }
-    this.audioElement = undefined;
-  }
+  // public detach() {
+  //   super.detach();
+  // }
 
   public stop() {
     this.mediaStreamTrack.stop();
@@ -81,22 +75,17 @@ export class VonageLocalVideoTrack extends VideoTrack {
   public videoElement: HTMLVideoElement | undefined;
 
   public attach(el: HTMLVideoElement) {
+    super.attach(el);
     el.srcObject = new MediaStream([this.mediaStreamTrack]);
     this.videoElement = el;
   }
 
-  public detach() {
-    if (this.videoElement) {
-      this.videoElement.srcObject = null;
-    }
-    this.videoElement = undefined;
-  }
+  // public detach() {
+  //   super.detach();
+  // }
 
   public stop() {
     this.mediaStreamTrack.stop();
-    if (this.videoElement) {
-      this.videoElement.srcObject = null;
-    }
   }
 }
 
@@ -114,16 +103,14 @@ export class VonageLocalAudioTrack extends AudioTrack {
   }
 
   public attach(el: HTMLAudioElement) {
+    super.attach(el);
     el.srcObject = new MediaStream([this.mediaStreamTrack]);
     this.audioElement = el;
   }
 
-  public detach() {
-    if (this.audioElement) {
-      this.audioElement.srcObject = null;
-    }
-    this.audioElement = undefined;
-  }
+  // public detach() {
+  //   super.detach();
+  // }
 
   public stop() {
     this.mediaStreamTrack.stop();
@@ -311,6 +298,21 @@ export class VonageRoom extends Room {
     });
   }
 
+  public setAudioOutputDevice(deviceId: string): void {
+    // This appears to work despite all of my custom code.
+    // It probably works because I'm using the audio track
+    // from the video element Vonage emits.
+    OT.setAudioOutputDevice(deviceId);
+
+    // This also works great. But It would require me to
+    // store the audioOutputDeviceId and apply it on attach
+    // like I do for Twilio.
+    // Array.from(this.participants.values()).forEach(({ mic, screenAudio }) => {
+    //   mic?.element?.setSinkId?.(deviceId);
+    //   screenAudio?.element?.setSinkId?.(deviceId);
+    // });
+  }
+
   private attachListeners() {
     this.session?.on('streamPropertyChanged', ({ changedProperty, newValue, stream }) => {
       const { identity } = JSON.parse(stream?.connection.data ?? '{}') as { identity: string };
@@ -393,8 +395,6 @@ export class VonageRoom extends Room {
             const id = `${connectionId}-${key}`;
             const remoteAudioTrack = new VonageRemoteAudioTrack({ id, source: key, mediaStreamTrack: audioTrack }, subscriber);
             remoteParticipant[key] = remoteAudioTrack;
-            // I should not attach inside of VideoCore, but this is fine for the PoC
-            remoteAudioTrack.attach(document.createElement('audio'));
             this.emit('trackSubscribed', remoteAudioTrack, remoteParticipant);
           }
         }

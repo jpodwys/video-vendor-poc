@@ -21,7 +21,7 @@ const Video = ({ track, mirror, ...props }: VideoProps) => {
     }
   }, [track]);
 
-  return <video autoPlay ref={videoRef} {...props} style={{transform: mirror ? 'scaleX(-1)' : ''}}/>
+  return <video autoPlay playsInline ref={videoRef} {...props} style={{transform: mirror ? 'scaleX(-1)' : ''}}/>
 };
 
 export default Video;

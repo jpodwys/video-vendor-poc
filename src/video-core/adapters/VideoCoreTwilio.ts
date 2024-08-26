@@ -10,10 +10,12 @@ export class TwilioLocalVideoTrack extends VideoTrack {
   }
 
   public attach(el: HTMLVideoElement): void {
+    super.attach(el);
     this.localVideoTrack.attach(el);
   }
 
   public detach(): void {
+    super.detach();
     this.localVideoTrack.detach();
   }
 
@@ -35,10 +37,12 @@ export class TwilioLocalAudioTrack extends AudioTrack {
   }
 
   public attach(el: HTMLAudioElement): void {
+    super.attach(el);
     this.localAudioTrack.attach(el);
   }
 
   public detach(): void {
+    super.detach();
     this.localAudioTrack.detach();
   }
 
@@ -56,24 +60,28 @@ export class TwilioRemoteVideoTrack extends VideoTrack {
   }
 
   public attach(el: HTMLVideoElement): void {
+    super.attach(el);
     this.remoteVideoTrack.attach(el);
   }
 
   public detach(): void {
+    super.detach();
     this.remoteVideoTrack.detach();
   }
 
   public stop(): void {
-    // Unnecessary
+    // Unimplemented
   }
 }
 
 export class TwilioRemoteAudioTrack extends AudioTrack {
   private remoteAudioTrack: Twilio.RemoteAudioTrack;
+  private room: TwilioRoom;
 
-  constructor(options: TrackOptions, remoteAudioTrack: Twilio.RemoteAudioTrack) {
+  constructor(options: TrackOptions, remoteAudioTrack: Twilio.RemoteAudioTrack, room: TwilioRoom) {
     super(options);
     this.remoteAudioTrack = remoteAudioTrack;
+    this.room = room;
   }
 
   public get isEnabled(): boolean {
@@ -81,15 +89,20 @@ export class TwilioRemoteAudioTrack extends AudioTrack {
   }
 
   public attach(el: HTMLAudioElement): void {
+    super.attach(el);
     this.remoteAudioTrack.attach(el);
+    if (this.room.audioOutputDeviceId) {
+      el.setSinkId?.(this.room.audioOutputDeviceId);
+    }
   }
 
   public detach(): void {
+    super.detach();
     this.remoteAudioTrack.detach();
   }
 
   public stop(): void {
-    // Unnecessary
+    // Unimplemented
   }
 }
 
@@ -100,6 +113,7 @@ export class TwilioRoom extends Room {
   private localMicTrack: Twilio.LocalAudioTrack | undefined;
   private localScreenVideoTrack: Twilio.LocalVideoTrack | undefined;
   private localScreenAudioTrack: Twilio.LocalAudioTrack | undefined;
+  public audioOutputDeviceId: string = '';
 
   public get identity(): string {
     return this.room?.localParticipant.identity ?? '';
@@ -242,6 +256,14 @@ export class TwilioRoom extends Room {
     });
   }
 
+  public setAudioOutputDevice(deviceId: string): void {
+    this.audioOutputDeviceId = deviceId;
+    Array.from(this.participants.values()).forEach(({ mic, screenAudio }) => {
+      mic?.element?.setSinkId?.(deviceId);
+      screenAudio?.element?.setSinkId?.(deviceId);
+    });
+  }
+
   private attachListeners(room: Twilio.Room) {
     room.on('participantConnected', ({ identity }: Twilio.RemoteParticipant) => {
       this.participants.set(identity, { identity });
@@ -259,11 +281,9 @@ export class TwilioRoom extends Room {
       switch(track.kind) {
         case 'data': return;
         case 'audio': {
-          // Stop attaching audio tracks here
-          track.attach();
           const source = track.name === 'screen' ? 'screenAudio' : 'mic';
           const id = `${track.sid}-${source}`;
-          const remoteAudioTrack = new TwilioRemoteAudioTrack({ id, source, mediaStreamTrack: track.mediaStreamTrack }, track as Twilio.RemoteAudioTrack);
+          const remoteAudioTrack = new TwilioRemoteAudioTrack({ id, source, mediaStreamTrack: track.mediaStreamTrack }, track as Twilio.RemoteAudioTrack, this);
           const participant = this.participants.get(remoteParticipant.identity);
           if (participant) {
             participant[source] = remoteAudioTrack;

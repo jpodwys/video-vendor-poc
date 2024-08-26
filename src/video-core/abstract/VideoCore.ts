@@ -48,12 +48,6 @@ interface VideoCoreEvents {
   trackSwitchedOff: (track: VideoTrack, participant: Participant) => void;
   trackSwitchedOn: (track: VideoTrack, participant: Participant) => void;
   disconnected: (error?: string) => void;
-  /**
-   * This is not supported as a room-level event in Twilio.
-   * I have to attach per-participant event handlers for this.
-   */
-  // participant (used for identity and networkQualityLevel)
-  networkQualityChanged: () => void;
   localMicDisabled: () => void;
 }
 
@@ -76,10 +70,6 @@ export declare interface Room {
   emit<U extends keyof VideoCoreEvents>(
     event: U, ...args: Parameters<VideoCoreEvents[U]>
   ): boolean;
-}
-
-export interface RoomOptions {
-  roomName: string;
 }
 
 export interface ConnectOptions {
@@ -109,12 +99,11 @@ export abstract class Room extends EventEmitter {
   public abstract startScreenshare(stream: MediaStream): Promise<VideoTrack>;
   public abstract stopScreenShare(): void;
   public abstract signal(event: SignalEvent): void;
-  // public abstract setAudioOutputDevice(deviceId: string): void;
+  public abstract setAudioOutputDevice(deviceId: string): void;
 }
 
 export interface Participant {
   identity: string;
-  // networkQuality: number;
   camera?: VideoTrack;
   mic?: AudioTrack;
   screen?: VideoTrack;
@@ -134,8 +123,9 @@ abstract class Track {
   public readonly id: string;
   public readonly source: TrackSource;
   protected mediaStreamTrack: MediaStreamTrack;
+  public abstract get element(): HTMLVideoElement | HTMLAudioElement | undefined;
 
-  public abstract attach(el: HTMLMediaElement): void;
+  public abstract attach(el: HTMLVideoElement | HTMLAudioElement): void;
   public abstract detach(): void;
   public abstract stop(): void;
 
@@ -149,15 +139,44 @@ abstract class Track {
 export abstract class AudioTrack extends Track {
   public readonly kind = 'audio';
   public abstract get isEnabled(): boolean;
+  private _element: HTMLAudioElement | undefined;
+
+  public attach(el: HTMLAudioElement): void {
+    this._element = el;
+  }
+  public detach(): void {
+    if (this._element) {
+      this._element.srcObject = null;
+      this._element = undefined;
+    }
+  }
+  public get element(): HTMLAudioElement | undefined {
+    return this._element;
+  }
 }
 
 export abstract class VideoTrack extends Track {
   public readonly kind = 'video';
   public readonly isPTZ: boolean;
+  private _element: HTMLVideoElement | undefined;
   public get dimensions () {
     const { width, height } = this.mediaStreamTrack.getSettings();
     return { width, height };
   }
+
+  public attach(el: HTMLVideoElement): void {
+    this._element = el;
+  }
+  public detach(): void {
+    if (this._element) {
+      this._element.srcObject = null;
+      this._element = undefined;
+    }
+  }
+  public get element(): HTMLVideoElement | undefined {
+    return this._element;
+  }
+
   constructor(options: TrackOptions) {
     super(options);
     this.isPTZ = options.isPTZ ?? false;

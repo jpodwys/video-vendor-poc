@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Participant, Room, AudioTrack, VideoTrack } from '../video-core/abstract/VideoCore';
 import { TrackGroup, UserTrackGroup } from './UserTrackGroup';
+import { supportsSetSinkId } from '../video-core/utils/media-utils';
 
 interface VideoAppProps {
   room: Room;
@@ -18,8 +19,10 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
   const [micEnabled, setMicEnabled] = useState(true);
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
+  const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([]);
   const [micDeviceId, setMicDeviceId] = useState('');
   const [cameraDeviceId, setCameraDeviceId] = useState('');
+  const [audioOutputDeviceId, setAudioOutputDeviceId] = useState('');
   const [screen, setScreen] = useState<VideoTrack | undefined>();
 
   const updateParticipant = (remoteParticipant: Participant) => {
@@ -45,10 +48,18 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
 
     const onTrackSubscribed = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {
       updateParticipant(remoteParticipant);
+      if (remoteTrack.kind === 'audio') {
+        remoteTrack.attach(document.createElement('audio'));
+      }
     };
 
     const onTrackUnsubscribed = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {
       updateParticipant(remoteParticipant);
+      const participant = remoteParticipants.get(remoteParticipant.identity);
+      if (participant) {
+        participant.mic?.detach();
+        participant.screenAudio?.detach();
+      }
     };
 
     const onTrackUnpublished = (remoteTrack: AudioTrack | VideoTrack, remoteParticipant: Participant) => {
@@ -81,14 +92,17 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
     const assignDevices = (devices: MediaDeviceInfo[]) => {
       const mics: MediaDeviceInfo[] = [];
       const cameras: MediaDeviceInfo[] = [];
+      const audioOutputs: MediaDeviceInfo[] = [];
       devices.forEach(device => {
         switch (device.kind) {
           case 'audioinput': mics.push(device); break;
           case 'videoinput': cameras.push(device); break;
+          case 'audiooutput': audioOutputs.push(device); break;
         }
       });
       setMicDevices(mics);
       setCameraDevices(cameras);
+      setAudioOutputDevices(audioOutputs);
     };
 
     if (videoTrack) {
@@ -151,6 +165,11 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
     setAudioTrack(localAudioTrack);
   };
 
+  const changeAudioOutputDevice = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setAudioOutputDeviceId(e.target.value);
+    room.setAudioOutputDevice(e.target.value);
+  };
+
   const acquireHardware = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { width: 640, height: 480 } });
     const { audio, video } = await room.createLocalTracks(stream);
@@ -201,7 +220,14 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
           <button onClick={toggleMic}>{`${micEnabled ? 'Disable' : 'Enable'} mic`}</button>
         }
         {connected &&
-          <button onClick={toggleScreenshare}>{`${!!screen ? 'Stop' : 'Start'} screenshare`}</button>
+          <>
+            <button onClick={toggleScreenshare}>{`${!!screen ? 'Stop' : 'Start'} screenshare`}</button>
+            {supportsSetSinkId() &&
+              <select onChange={changeAudioOutputDevice} value={audioOutputDeviceId}>
+                {audioOutputDevices.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}
+              </select>
+            }
+          </>
         }
       </div>
       <div>
