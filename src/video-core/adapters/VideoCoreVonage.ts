@@ -91,8 +91,12 @@ export class VonageLocalAudioTrack extends AudioTrack {
     this.publisher = publisher;
   }
 
+  // Vonage's public API is not capable of determining whether local audio is
+  // enabled until after you publish your audio. This means we need to rely on
+  // the underlying audio MediaStreamTrack's enabled property.
   public get isEnabled(): boolean {
-    return this.publisher.stream?.hasAudio ?? true;
+    return this.mediaStreamTrack.enabled;
+    // return this.publisher.stream?.hasAudio ?? false;
   }
 
   public attach() {

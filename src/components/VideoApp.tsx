@@ -14,8 +14,8 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
   const [connected, setConnected] = useState(false);
   const [audioTrack, setAudioTrack] = useState<AudioTrack | undefined>();
   const [videoTrack, setVideoTrack] = useState<VideoTrack | undefined>();
+  const [screen, setScreen] = useState<VideoTrack | undefined>();
   const [remoteParticipants, setRemoteParticipants] = useState<Map<string, Participant>>(new Map());
-  const [cameraEnabled, setCameraEnabled] = useState(true);
   const [micEnabled, setMicEnabled] = useState(true);
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
@@ -23,7 +23,6 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
   const [micDeviceId, setMicDeviceId] = useState('');
   const [cameraDeviceId, setCameraDeviceId] = useState('');
   const [audioOutputDeviceId, setAudioOutputDeviceId] = useState('');
-  const [screen, setScreen] = useState<VideoTrack | undefined>();
 
   const updateParticipant = (remoteParticipant: Participant) => {
     remoteParticipants.set(remoteParticipant.identity, remoteParticipant);
@@ -108,24 +107,23 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
   }, [videoTrack]);
 
   const toggleCamera = async () => {
-    if (cameraEnabled) {
+    if (!!videoTrack) {
       videoTrack?.stop();
       room.stopCamera();
       setVideoTrack(undefined);
-      setCameraEnabled(false);
     } else {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: cameraDeviceId } });
       const track = stream.getVideoTracks()[0];
       const localVideoTrack = await room.startCamera(track);
       setVideoTrack(localVideoTrack);
-      setCameraEnabled(true);
     }
   };
 
   const toggleMic = () => {
-    const enableMic = !micEnabled;
-    room.enableMic(enableMic);
-    setMicEnabled(enableMic);
+    if (audioTrack) {
+      room.enableMic(!audioTrack.isEnabled);
+      setMicEnabled(audioTrack.isEnabled);
+    }
   };
 
   const toggleScreenshare = async () => {
@@ -211,7 +209,7 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
       }
       <div>
         {!!audioTrack &&
-          <button onClick={toggleCamera}>{`${cameraEnabled ? 'Disable' : 'Enable'} Camera`}</button>
+          <button onClick={toggleCamera}>{`${!!videoTrack ? 'Disable' : 'Enable'} Camera`}</button>
         }
         {!!audioTrack &&
           <button onClick={toggleMic}>{`${micEnabled ? 'Disable' : 'Enable'} mic`}</button>
@@ -228,7 +226,7 @@ export default function VideoApp({ room, roomName, roomToken, reset }: VideoAppP
         }
       </div>
       <div>
-        {videoTrack && cameraEnabled && cameraDevices.length > 0 &&
+        {videoTrack && cameraDevices.length > 0 &&
           <select onChange={changeCamera} value={cameraDeviceId}>
             {cameraDevices.map(camera => <option key={camera.deviceId} value={camera.deviceId}>{camera.label}</option>)}
           </select>
